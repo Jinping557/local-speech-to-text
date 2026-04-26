@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>黔音留痕 · 方言口述历史抢救系统</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">黔</span>
+      <h1>黔音留痕</h1>
+      <span class="subtitle">方言口述历史抢救系统</span>
+    </div>
+    <div class="topbar-actions">
+      <label class="preset-switch">
+        <span>基座</span>
+        <select id="preset-select" title="一键切换转写基座"></select>
+      </label>
+      <button id="open-settings" class="btn btn-ghost" title="API 设置">⚙ 设置</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- 左：音源 -->
+    <section class="panel panel-source">
+      <h2>音源</h2>
+
+      <div id="dropzone" class="dropzone" tabindex="0">
+        <div class="dz-icon">📁</div>
+        <div class="dz-title">拖拽 / 点击上传音频</div>
+        <div class="dz-hint">支持 MP3 / WAV / M4A / WebM</div>
+        <input id="file-input" type="file" accept="audio/*" hidden />
+      </div>
+
+      <div class="recorder">
+        <button id="rec-toggle" class="btn btn-primary btn-block">🎤 开始录音</button>
+        <div id="rec-status" class="rec-status">未录音</div>
+      </div>
+
+      <div class="player">
+        <audio id="audio" controls preload="metadata"></audio>
+        <div id="audio-meta" class="audio-meta">未加载音频</div>
+      </div>
+    </section>
+
+    <!-- 中：转写文本 -->
+    <section class="panel panel-transcript">
+      <div class="transcript-toolbar">
+        <h2>转写文本</h2>
+        <div class="toolbar-actions">
+          <button id="voice-cmd" class="btn btn-ghost" title="语音指令：把X改为Y">🎙 语音指令</button>
+          <button id="edit-toggle" class="btn btn-ghost" title="切换编辑模式">✏ 编辑模式</button>
+          <button id="retranscribe" class="btn btn-ghost" title="用当前基座重新转写">↻ 重转</button>
+        </div>
+      </div>
+
+      <div id="transcript" class="transcript" aria-live="polite">
+        <div class="placeholder">
+          <p>👋 欢迎。请按以下步骤开始：</p>
+          <ol>
+            <li>点击右上角 <b>⚙ 设置</b>，配置 API Key 与 Base URL。</li>
+            <li>左侧上传音频或点击麦克风录音。</li>
+            <li>转写完成后，点击文字即可让音频跳转到对应位置。</li>
+            <li>修改文本或使用 🎙 语音指令，让系统记住正确版本。</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右：进化中心 -->
+    <aside class="panel panel-evolution">
+      <h2>进化中心</h2>
+      <div class="evolution-stats">
+        <div class="stat">
+          <div class="stat-num" id="dict-count">0</div>
+          <div class="stat-label">已学习词条</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num" id="dict-hits">0</div>
+          <div class="stat-label">本会话命中</div>
+        </div>
+      </div>
+
+      <div class="rule-add">
+        <input id="rule-pattern" type="text" placeholder="原始（如 吃饭）" />
+        <span class="arrow">→</span>
+        <input id="rule-replacement" type="text" placeholder="正确（如 切饭）" />
+        <button id="rule-add-btn" class="btn btn-primary">+ 添加</button>
+      </div>
+
+      <ul id="rule-list" class="rule-list"></ul>
+    </aside>
+  </main>
+
+  <footer class="statusbar">
+    <span id="status-api" class="status-item">● 未配置 API</span>
+    <span id="status-task" class="status-item">就绪</span>
+    <span class="spacer"></span>
+    <button id="export-md" class="btn btn-primary">📥 导出 Markdown</button>
+  </footer>
+
+  <!-- 设置抽屉 -->
+  <div id="settings-mask" class="mask hidden" aria-hidden="true">
+    <div class="drawer" role="dialog" aria-labelledby="settings-title">
+      <div class="drawer-header">
+        <h2 id="settings-title">API 设置</h2>
+        <button id="close-settings" class="btn btn-ghost">✕</button>
+      </div>
+      <div class="drawer-body">
+        <p class="hint">兼容 OpenAI Whisper 协议的厂商均可。Key 仅保存在本机浏览器，不会上传。</p>
+
+        <div class="form-row">
+          <label>预设名称</label>
+          <input id="cfg-name" type="text" placeholder="例如：通用 Whisper / 阿里通义 / SiliconFlow" />
+        </div>
+        <div class="form-row">
+          <label>STT Base URL</label>
+          <input id="cfg-stt-base" type="text" placeholder="https://api.openai.com/v1" />
+        </div>
+        <div class="form-row">
+          <label>STT API Key</label>
+          <input id="cfg-stt-key" type="password" placeholder="sk-..." />
+        </div>
+        <div class="form-row">
+          <label>STT 模型</label>
+          <input id="cfg-stt-model" type="text" placeholder="whisper-1" />
+        </div>
+
+        <details class="advanced">
+          <summary>对话/纠错模型（可选）</summary>
+          <div class="form-row">
+            <label>Chat Base URL</label>
+            <input id="cfg-chat-base" type="text" placeholder="https://api.deepseek.com/v1" />
+          </div>
+          <div class="form-row">
+            <label>Chat API Key</label>
+            <input id="cfg-chat-key" type="password" placeholder="sk-..." />
+          </div>
+          <div class="form-row">
+            <label>Chat 模型</label>
+            <input id="cfg-chat-model" type="text" placeholder="deepseek-chat" />
+          </div>
+        </details>
+
+        <div class="drawer-actions">
+          <button id="cfg-save" class="btn btn-primary">保存为预设</button>
+          <button id="cfg-test" class="btn btn-ghost">测试连接</button>
+        </div>
+
+        <h3 class="presets-title">已保存的基座</h3>
+        <ul id="preset-list" class="preset-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 容器 -->
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
