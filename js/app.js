@@ -52,6 +52,7 @@ const els = {
   ruleReplacement: $('rule-replacement'),
   ruleAddBtn: $('rule-add-btn'),
   ruleList: $('rule-list'),
+  ruleListCount: $('rule-list-count'),
   exportMd: $('export-md'),
   statusApi: $('status-api'),
   statusTask: $('status-task'),
@@ -175,28 +176,96 @@ function refreshPresetSelect() {
 }
 
 // === 进化中心 ===
+let _editingRuleId = null;
+
 function refreshDictPanel() {
   const dict = Storage.getDict();
   els.dictCount.textContent = String(dict.length);
   els.dictHits.textContent = String(Evolution.getSessionHits());
+  if (els.ruleListCount) els.ruleListCount.textContent = String(dict.length);
   els.ruleList.innerHTML = '';
   if (dict.length === 0) {
+    _editingRuleId = null;
     els.ruleList.innerHTML = '<li class="empty">尚未学习。修改文本或使用 🎙 语音指令即可。</li>';
     return;
   }
   // 倒序，新加入靠前
   [...dict].reverse().forEach((r) => {
     const li = document.createElement('li');
-    li.innerHTML = `
-      <span class="rule-text"><del>${escapeHtml(r.pattern)}</del> → <ins>${escapeHtml(r.replacement)}</ins></span>
-      <span class="rule-meta" title="来源：${r.source} · 命中：${r.hits}">${r.source[0].toUpperCase()} ·${r.hits}</span>
-      <button class="rule-del" title="删除">✕</button>
-    `;
-    li.querySelector('.rule-del').onclick = () => {
-      Storage.deleteRule(r.id);
-      refreshDictPanel();
-    };
+    if (r.id === _editingRuleId) {
+      renderRuleEditing(li, r);
+    } else {
+      renderRuleView(li, r);
+    }
     els.ruleList.appendChild(li);
+  });
+}
+
+function renderRuleView(li, r) {
+  li.classList.remove('editing');
+  li.innerHTML = `
+    <span class="rule-text"><del>${escapeHtml(r.pattern)}</del> → <ins>${escapeHtml(r.replacement)}</ins></span>
+    <span class="rule-meta" title="来源：${r.source} · 命中：${r.hits}">${r.source[0].toUpperCase()} ·${r.hits}</span>
+    <button class="rule-edit" title="编辑">✎</button>
+    <button class="rule-del" title="删除">✕</button>
+  `;
+  li.querySelector('.rule-edit').onclick = () => {
+    _editingRuleId = r.id;
+    refreshDictPanel();
+  };
+  li.querySelector('.rule-del').onclick = () => {
+    if (!confirm(`删除词条「${r.pattern} → ${r.replacement}」？`)) return;
+    Storage.deleteRule(r.id);
+    if (_editingRuleId === r.id) _editingRuleId = null;
+    refreshDictPanel();
+  };
+}
+
+function renderRuleEditing(li, r) {
+  li.classList.add('editing');
+  li.innerHTML = `
+    <input class="rule-edit-pattern" type="text" value="${escapeHtml(r.pattern)}" placeholder="原始" />
+    <span class="arrow">→</span>
+    <input class="rule-edit-replacement" type="text" value="${escapeHtml(r.replacement)}" placeholder="正确" />
+    <button class="rule-save btn btn-primary">保存</button>
+    <button class="rule-cancel btn btn-ghost">取消</button>
+  `;
+  const pIn = li.querySelector('.rule-edit-pattern');
+  const rIn = li.querySelector('.rule-edit-replacement');
+  pIn.focus();
+  pIn.select();
+
+  const save = () => {
+    const pattern = pIn.value.trim();
+    const replacement = rIn.value.trim();
+    if (!pattern || !replacement) { toast('原始与正确表达均需填写', 'warn'); return; }
+    if (pattern === replacement) { toast('两侧内容相同，无需保存', 'warn'); return; }
+    const result = Storage.updateRule(r.id, { pattern, replacement });
+    if (!result) { toast('更新失败', 'err'); return; }
+    if (result.error === 'duplicate') {
+      toast('已存在相同的"原始"词条，不能重复', 'warn');
+      return;
+    }
+    _editingRuleId = null;
+    // 立即对当前转写应用一次
+    if (state.transcript) {
+      const hits = Evolution.applyDict(state.transcript);
+      renderAll();
+      toast(`已更新：${pattern} → ${replacement}（命中 ${hits}）`, 'ok');
+    } else {
+      refreshDictPanel();
+      toast(`已更新：${pattern} → ${replacement}`, 'ok');
+    }
+  };
+  const cancel = () => { _editingRuleId = null; refreshDictPanel(); };
+
+  li.querySelector('.rule-save').onclick = save;
+  li.querySelector('.rule-cancel').onclick = cancel;
+  [pIn, rIn].forEach((inp) => {
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
   });
 }
 

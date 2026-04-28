@@ -2,7 +2,10 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1419" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>黔音留痕 · 方言口述历史抢救系统</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -90,6 +93,7 @@
         <button id="rule-add-btn" class="btn btn-primary">+ 添加</button>
       </div>
 
+      <h3 class="rule-list-title">已保存词条 <span class="rule-count-badge" id="rule-list-count">0</span></h3>
       <ul id="rule-list" class="rule-list"></ul>
     </aside>
   </main>
@@ -117,30 +121,30 @@
         </div>
         <div class="form-row">
           <label>STT Base URL</label>
-          <input id="cfg-stt-base" type="text" placeholder="https://api.openai.com/v1" />
+          <input id="cfg-stt-base" type="url" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://api.openai.com/v1" />
         </div>
         <div class="form-row">
           <label>STT API Key</label>
-          <input id="cfg-stt-key" type="password" placeholder="sk-..." />
+          <input id="cfg-stt-key" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sk-..." />
         </div>
         <div class="form-row">
           <label>STT 模型</label>
-          <input id="cfg-stt-model" type="text" placeholder="whisper-1" />
+          <input id="cfg-stt-model" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="whisper-1" />
         </div>
 
         <details class="advanced">
           <summary>对话/纠错模型（可选）</summary>
           <div class="form-row">
             <label>Chat Base URL</label>
-            <input id="cfg-chat-base" type="text" placeholder="https://api.deepseek.com/v1" />
+            <input id="cfg-chat-base" type="url" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://api.deepseek.com/v1" />
           </div>
           <div class="form-row">
             <label>Chat API Key</label>
-            <input id="cfg-chat-key" type="password" placeholder="sk-..." />
+            <input id="cfg-chat-key" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sk-..." />
           </div>
           <div class="form-row">
             <label>Chat 模型</label>
-            <input id="cfg-chat-model" type="text" placeholder="deepseek-chat" />
+            <input id="cfg-chat-model" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="deepseek-chat" />
           </div>
         </details>
 

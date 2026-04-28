@@ -120,6 +120,21 @@ export function deleteRule(id) {
   return dict;
 }
 
+export function updateRule(id, { pattern, replacement }) {
+  if (!pattern || !replacement || pattern === replacement) return null;
+  const dict = getDict();
+  const r = dict.find((x) => x.id === id);
+  if (!r) return null;
+  // 检查是否会与其他词条 pattern 冲突
+  const conflict = dict.find((x) => x.id !== id && x.pattern === pattern);
+  if (conflict) return { error: 'duplicate', conflictId: conflict.id };
+  r.pattern = pattern;
+  r.replacement = replacement;
+  r.updatedAt = Date.now();
+  saveDict(dict);
+  return r;
+}
+
 export function bumpHits(id, n = 1) {
   const dict = getDict();
   const r = dict.find((x) => x.id === id);
