@@ -1,5 +1,10 @@
 # 黔音留痕 · 方言口述历史抢救系统（Demo MVP）
 
+[![GitHub Pages](https://img.shields.io/badge/Demo-Live-brightgreen)](https://jinping557.github.io/local-speech-to-text/)
+
+> **在线演示**：[https://jinping557.github.io/local-speech-to-text/](https://jinping557.github.io/local-speech-to-text/)
+> （需要自带 STT API Key，Key 仅存于本机浏览器，不上传任何服务器。）
+
 针对贵州复杂山地垂直方言环境的口述历史采集与编辑工具。开放式接入主流语音大模型 API，支持音文双向同步、即时校正与本地"进化字典"自学习。
 
 > 本项目为 **纯静态前端**（HTML + CSS + 原生 ES Module），零构建。API Key 仅保存在本机浏览器 `localStorage`，浏览器直接调用 OpenAI 兼容协议的 STT 接口。
