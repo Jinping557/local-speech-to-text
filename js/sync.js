@@ -72,15 +72,16 @@ function _force() {
 }
 
 function _seekTo(t) {
+  if (!_audio) return;
+  const target = Math.max(0, t);
   const dur = _audio.duration;
   if (Number.isFinite(dur) && dur > 0) {
-    _audio.currentTime = Math.min(t, dur - 0.05);
-    _audio.play().catch(() => {});
+    _applySeek(Math.min(target, Math.max(0, dur - 0.05)));
     return;
   }
   // duration 尚未解析（WebM/MediaRecorder 的 Infinity 情形）：
   // 记录目标时间，注册 durationchange 等待真实时长解析后再跳转。
-  _pendingSeek = t;
+  _pendingSeek = target;
   if (_durationListener) return; // 已在等待，更新 _pendingSeek 即可
   _durationListener = () => {
     const d = _audio.duration;
@@ -88,15 +89,34 @@ function _seekTo(t) {
     _audio.removeEventListener('durationchange', _durationListener);
     _durationListener = null;
     if (_pendingSeek !== null) {
-      const target = _pendingSeek;
+      const tg = _pendingSeek;
       _pendingSeek = null;
-      _audio.currentTime = Math.min(target, d - 0.05);
-      _audio.play().catch(() => {});
+      _applySeek(Math.min(tg, Math.max(0, d - 0.05)));
     }
   };
   _audio.addEventListener('durationchange', _durationListener);
   // 触发浏览器扫描文件末尾以得到真实时长
   try { _audio.currentTime = 1e7; } catch { /* ignore */ }
+}
+
+// 设置 currentTime 并播放；校验 seek 是否真正落点（诊断不可定位的音频）。
+function _applySeek(target) {
+  const onSeeked = () => {
+    _audio.removeEventListener('seeked', onSeeked);
+    if (target > 0.5 && _audio.currentTime < 0.3) {
+      console.warn(
+        `[sync] seek 被钳制回 ${_audio.currentTime.toFixed(2)}s（目标 ${target.toFixed(2)}s）：` +
+        '该音频不可随机定位，应已转码为 WAV，请检查 audiofix 是否生效。'
+      );
+    }
+  };
+  _audio.addEventListener('seeked', onSeeked, { once: true });
+  try {
+    _audio.currentTime = target;
+  } catch (e) {
+    console.warn('[sync] 设置 currentTime 失败：', e);
+  }
+  _audio.play().catch(() => {});
 }
 
 function _onClick(e) {
