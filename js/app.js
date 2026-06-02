@@ -8,6 +8,7 @@ import * as Evolution from './evolution.js';
 import { parseCommand } from './voicecmd.js';
 import { downloadMarkdown } from './export.js';
 import { GUIZHOU_DIALECT_PRESET } from './dialect.js';
+import { toSeekableBlob } from './audiofix.js';
 
 // === 转写提示词预设（用于对话/纠错模型的后处理指令）===
 const PROMPT_PRESETS = [
@@ -435,12 +436,21 @@ function renderAll() {
 }
 
 // === 文件加载 ===
-function loadAudioBlob(blob, name) {
-  state.audioBlob = blob;
+async function loadAudioBlob(blob, name) {
+  state.audioBlob = blob;            // 原始 blob 始终用于 STT（体积小）
   state.audioName = name || 'recording';
+  // MediaRecorder 的 WebM/Ogg(Opus) 容器无 Cues 索引，点击靠后文本设置 currentTime
+  // 会被浏览器钳制回 0（“只能从头播放”）。先解码重编码为可精确 seek 的 WAV 仅供播放。
+  let playBlob = blob;
+  try {
+    playBlob = await toSeekableBlob(blob);
+  } catch (e) {
+    console.warn('音频转码失败，使用原始格式播放：', e);
+  }
   if (els.audio.src) URL.revokeObjectURL(els.audio.src);
-  els.audio.src = URL.createObjectURL(blob);
-  els.audioMeta.textContent = `${name || '录音'} · ${(blob.size / 1024).toFixed(1)} KB · ${blob.type || '未知格式'}`;
+  els.audio.src = URL.createObjectURL(playBlob);
+  const note = playBlob !== blob ? ' · 已转码可定位' : '';
+  els.audioMeta.textContent = `${name || '录音'} · ${(blob.size / 1024).toFixed(1)} KB · ${blob.type || '未知格式'}${note}`;
   els.audio.load();
   primeDuration(els.audio);
 }
@@ -468,13 +478,13 @@ function primeDuration(audio) {
   }
 }
 
-function handleFile(file) {
+async function handleFile(file) {
   if (!file) return;
   if (!file.type.startsWith('audio/') && !/\.(mp3|wav|m4a|webm|ogg|aac|flac)$/i.test(file.name)) {
     toast('请选择音频文件 (MP3/WAV/M4A/WebM)', 'warn');
     return;
   }
-  loadAudioBlob(file, file.name);
+  await loadAudioBlob(file, file.name);
   doTranscribe(file, file.name);
 }
 
@@ -490,7 +500,7 @@ async function toggleRecord() {
       els.recStatus.textContent = '录音完成 · ' + (blob.size / 1024).toFixed(1) + ' KB';
       const ts = new Date().toISOString().replace(/[:.]/g, '-');
       const name = `recording-${ts}.webm`;
-      loadAudioBlob(blob, name);
+      await loadAudioBlob(blob, name);
       await doTranscribe(blob, name);
     } catch (e) {
       console.error(e);

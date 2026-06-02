@@ -98,6 +98,10 @@ export function normalize(raw) {
     }
   }
 
+  // 若厂商完全没给有效的段级时间（start/end 全为 0），词时间会塌缩到 ~0，
+  // 导致点击任意文本都从头播放。这里按文本长度在总时长上分布，恢复可跳转性。
+  ensureSegmentTiming(out, duration);
+
   // 退化分支：若整体没有任何 words，但有 segments，则按字数线性插值，保证同步引擎可用
   for (const seg of out.segments) {
     if (seg.words.length === 0 && seg.text) {
@@ -115,6 +119,29 @@ export function normalize(raw) {
   }
 
   return out;
+}
+
+// 当厂商未提供有效段级时间时，按各段文本长度在总时长上等比分布，
+// 并重建词时间戳，确保「点击文本→跳转对应音频」可用。
+function ensureSegmentTiming(out, duration) {
+  const segs = out.segments;
+  if (segs.length === 0) return;
+  const hasTiming = segs.some((s) => s.end > 0 && s.end > s.start);
+  if (hasTiming) return; // 厂商已给有效时间，不动
+
+  const lens = segs.map((s) => Math.max(1, Array.from(s.text).length));
+  const sum = lens.reduce((a, b) => a + b, 0) || 1;
+  // 有总时长用之；否则按 ~5 字/秒粗估，至少保证相对顺序正确
+  const total = duration > 0 ? duration : sum / 5;
+  let acc = 0;
+  for (let i = 0; i < segs.length; i++) {
+    const start = (total * acc) / sum;
+    acc += lens[i];
+    const end = (total * acc) / sum;
+    segs[i].start = start;
+    segs[i].end = end;
+    segs[i].words = synthWordsFromText(segs[i].text, start, end);
+  }
 }
 
 function normWord(w) {
