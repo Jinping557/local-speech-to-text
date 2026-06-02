@@ -102,9 +102,11 @@ export function normalize(raw) {
   // 导致点击任意文本都从头播放。这里按文本长度在总时长上分布，恢复可跳转性。
   ensureSegmentTiming(out, duration);
 
-  // 退化分支：若整体没有任何 words，但有 segments，则按字数线性插值，保证同步引擎可用
+  // 逐段校验词时间：只要词时间缺失、全 0、或不随时间推进（厂商用了不同
+  // 字段名、单位不符、或根本没返回 word 级），就用该段的有效起止时间按字数
+  // 重建，确保点击任意词都能跳到正确位置，而不是一律跳回 0。
   for (const seg of out.segments) {
-    if (seg.words.length === 0 && seg.text) {
+    if (seg.text && !wordsUsable(seg.words)) {
       seg.words = synthWordsFromText(seg.text, seg.start, seg.end);
     }
   }
@@ -119,6 +121,20 @@ export function normalize(raw) {
   }
 
   return out;
+}
+
+// 判断一段的 words 时间戳是否可用：存在、数值有效、且整体随时间推进
+// （最大 end 严格大于最小 start）。全 0 或所有词同一时刻都视为不可用。
+function wordsUsable(words) {
+  if (!words || words.length === 0) return false;
+  let minStart = Infinity;
+  let maxEnd = -Infinity;
+  for (const w of words) {
+    if (!Number.isFinite(w.start) || !Number.isFinite(w.end)) return false;
+    if (w.start < minStart) minStart = w.start;
+    if (w.end > maxEnd) maxEnd = w.end;
+  }
+  return maxEnd > minStart;
 }
 
 // 当厂商未提供有效段级时间时，按各段文本长度在总时长上等比分布，
@@ -153,7 +169,7 @@ function normWord(w) {
 }
 
 // 把段文本按字数等距切成"伪 word" 列表（仅当厂商不返回 word-level 时）
-function synthWordsFromText(text, start, end) {
+export function synthWordsFromText(text, start, end) {
   const chars = Array.from(text);
   if (chars.length === 0) return [];
   const total = Math.max(0.001, end - start);
