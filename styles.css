@@ -191,9 +191,30 @@ input:focus, select:focus, textarea:focus {
   font-size: 12px;
   color: var(--text-dim);
 }
-.prompt-box select,
-.prompt-box textarea { width: 100%; }
-.prompt-box textarea { resize: vertical; }
+.prompt-box textarea { width: 100%; resize: vertical; }
+.prompt-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.prompt-cb-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  background: var(--surface2, #1e2530);
+  border: 1px solid var(--border, #2d3748);
+  border-radius: 4px;
+  padding: 2px 8px;
+  user-select: none;
+}
+.prompt-cb-item:has(input:checked) {
+  border-color: var(--accent, #4a9eff);
+  background: rgba(74, 158, 255, .12);
+}
+.prompt-cb-item input { cursor: pointer; }
 
 /* === transcript panel === */
 .transcript-toolbar {

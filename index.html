@@ -43,14 +43,9 @@
       </div>
 
       <div class="prompt-box">
-        <label for="prompt-preset">转写提示词（可选，发送给模型）</label>
-        <select id="prompt-preset">
-          <option value="">无（默认）</option>
-          <option value="当前上传的语音为贵州方言，请按方言习惯准确转写。">方言提示：贵州话</option>
-          <option value="请删除无意义的重复语气词，例如「嗯」「哦」「呃」「啊」等。">清理无意义语气词</option>
-          <option value="__custom__">自定义…</option>
-        </select>
-        <textarea id="prompt-custom" rows="2" class="hidden" placeholder="自定义提示词，例如：当前语音为四川话；保留人名地名。"></textarea>
+        <label>转写提示词（可选，发送给模型）</label>
+        <div id="prompt-presets" class="prompt-presets"></div>
+        <textarea id="prompt-text" rows="3" placeholder="可直接编辑，或勾选上方预设自动填入…"></textarea>
       </div>
 
       <div class="player">

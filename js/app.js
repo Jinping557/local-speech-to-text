@@ -9,6 +9,15 @@ import { parseCommand } from './voicecmd.js';
 import { downloadMarkdown } from './export.js';
 import { GUIZHOU_DIALECT_PRESET } from './dialect.js';
 
+// === 转写提示词预设 ===
+const PROMPT_PRESETS = [
+  { id: 'guizhou', label: '方言：贵州话', text: '当前上传的语音为贵州方言，请按方言习惯准确转写。' },
+  { id: 'clean',   label: '清理语气词',   text: '请删除无意义的重复语气词，例如「嗯」「哦」「呃」「啊」等。' },
+  { id: 'names',   label: '保留人名地名', text: '请保留语音中出现的人名和地名，不要简化或省略。' },
+  { id: 'english', label: '保留英文原词', text: '涉及英文单词时，请保留原始英文拼写，不要翻译或音译。' },
+  { id: 'fluency', label: '语义通顺',     text: '请根据上下语境和所识别文本，保持转写结果语义通顺。' },
+];
+
 // === 应用状态 ===
 const state = {
   audioBlob: null,
@@ -48,8 +57,8 @@ const els = {
   cfgSave: $('cfg-save'),
   cfgTest: $('cfg-test'),
   presetList: $('preset-list'),
-  promptPreset: $('prompt-preset'),
-  promptCustom: $('prompt-custom'),
+  promptPresets: $('prompt-presets'),
+  promptText: $('prompt-text'),
   importDialect: $('import-dialect'),
   dictCount: $('dict-count'),
   dictHits: $('dict-hits'),
@@ -295,26 +304,47 @@ function renderRuleEditing(li, r) {
 }
 
 // === 转写提示词 ===
-function initPromptUI() {
-  const saved = Storage.getSttPrompt();
-  const options = Array.from(els.promptPreset.options).map((o) => o.value);
-  if (!saved) {
-    els.promptPreset.value = '';
-    els.promptCustom.classList.add('hidden');
-  } else if (options.includes(saved)) {
-    els.promptPreset.value = saved;
-    els.promptCustom.classList.add('hidden');
-  } else {
-    // 与任何示例都不匹配 → 视为自定义
-    els.promptPreset.value = '__custom__';
-    els.promptCustom.value = saved;
-    els.promptCustom.classList.remove('hidden');
-  }
+function _syncCheckboxes() {
+  const lines = els.promptText.value.split('\n').map((l) => l.trim()).filter(Boolean);
+  PROMPT_PRESETS.forEach((p) => {
+    const cb = document.getElementById('prompt-cb-' + p.id);
+    if (cb) cb.checked = lines.includes(p.text.trim());
+  });
 }
+
+function _onPresetChange(preset, checked) {
+  const lines = els.promptText.value.split('\n').map((l) => l.trim()).filter(Boolean);
+  if (checked) {
+    if (!lines.includes(preset.text.trim())) lines.push(preset.text.trim());
+  } else {
+    const idx = lines.indexOf(preset.text.trim());
+    if (idx >= 0) lines.splice(idx, 1);
+  }
+  els.promptText.value = lines.join('\n');
+  Storage.setSttPrompt(els.promptText.value);
+  _syncCheckboxes();
+}
+
+function initPromptUI() {
+  PROMPT_PRESETS.forEach((p) => {
+    const lbl = document.createElement('label');
+    lbl.className = 'prompt-cb-item';
+    lbl.htmlFor = 'prompt-cb-' + p.id;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = 'prompt-cb-' + p.id;
+    cb.addEventListener('change', () => _onPresetChange(p, cb.checked));
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(p.label));
+    els.promptPresets.appendChild(lbl);
+  });
+  els.promptText.value = Storage.getSttPrompt();
+  _syncCheckboxes();
+}
+
 // 返回当前生效的提示词（空串表示无）
 function getCurrentPrompt() {
-  if (els.promptPreset.value === '__custom__') return els.promptCustom.value.trim();
-  return els.promptPreset.value;
+  return els.promptText.value.trim();
 }
 
 // === 转写主流程 ===
@@ -376,11 +406,11 @@ function primeDuration(audio) {
   const onMeta = () => {
     audio.removeEventListener('loadedmetadata', onMeta);
     if (audio.duration === Infinity || Number.isNaN(audio.duration)) {
-      const onSeek = () => {
-        audio.removeEventListener('timeupdate', onSeek);
+      const onSeeked = () => {
+        audio.removeEventListener('seeked', onSeeked);
         try { audio.currentTime = 0; } catch { /* ignore */ }
       };
-      audio.addEventListener('timeupdate', onSeek);
+      audio.addEventListener('seeked', onSeeked);
       try { audio.currentTime = 1e7; } catch { /* ignore */ }
     }
   };
@@ -623,21 +653,10 @@ function bindEvents() {
   // 厂商预设选择
   els.cfgProvider.onchange = () => applyProviderTemplate(els.cfgProvider.value);
 
-  // 转写提示词
-  els.promptPreset.onchange = () => {
-    if (els.promptPreset.value === '__custom__') {
-      els.promptCustom.classList.remove('hidden');
-      els.promptCustom.focus();
-      Storage.setSttPrompt(els.promptCustom.value.trim());
-    } else {
-      els.promptCustom.classList.add('hidden');
-      Storage.setSttPrompt(els.promptPreset.value);
-    }
-  };
-  els.promptCustom.oninput = () => {
-    if (els.promptPreset.value === '__custom__') {
-      Storage.setSttPrompt(els.promptCustom.value.trim());
-    }
+  // 转写提示词（文本框直接编辑）
+  els.promptText.oninput = () => {
+    Storage.setSttPrompt(els.promptText.value);
+    _syncCheckboxes();
   };
 
   // 导入贵州方言词库（可选）
