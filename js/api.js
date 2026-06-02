@@ -183,6 +183,86 @@ export async function pingActive() {
   return pingConfig(getActivePreset());
 }
 
+// 对话/纠错模型连通性检查：发送一条极短消息。
+// 未配置时返回 null（跳过，非错误）。
+export async function pingChatConfig(cfg) {
+  const target = cfg || getActivePreset();
+  if (!target.chatApiKey || !target.chatBaseUrl || !target.chatModel) return null;
+  const url = joinUrl(target.chatBaseUrl, '/chat/completions');
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${target.chatApiKey}` },
+      body: JSON.stringify({ model: target.chatModel, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 }),
+    });
+  } catch (e) {
+    throw new ApiError(0, String(e), '对话模型网络错误：' + e.message);
+  }
+  if (!res.ok) {
+    const text = await safeText(res);
+    throw new ApiError(res.status, text, '对话模型：' + friendlyError(res.status, text));
+  }
+  return true;
+}
+
+/**
+ * 用对话/纠错模型对 STT 结果按 prompt 纠错。
+ * 返回新的 transcript 对象（segment 文本已替换，word 时间戳等比重分布）。
+ */
+export async function chatCorrectTranscript(transcript, prompt, cfg) {
+  const target = cfg || getActivePreset();
+  if (!target.chatApiKey) throw new ApiError(0, '', '未配置对话模型 API Key');
+  if (!target.chatBaseUrl) throw new ApiError(0, '', '未配置对话模型 Base URL');
+  if (!target.chatModel) throw new ApiError(0, '', '未配置对话模型名称');
+
+  const segTexts = transcript.segments.map((s, i) => `[${i}] ${s.text}`).join('\n');
+  const systemMsg = '你是专业的语音转写校对助手。用户发来按编号排列的转写文本片段，请按用户要求逐段校对。' +
+    '严格按原始格式返回：[编号] 校对后文本，每段占一行，不增减行数，不加任何解释。';
+  const userMsg = `${prompt}\n\n待校对的转写文本：\n${segTexts}`;
+
+  const url = joinUrl(target.chatBaseUrl, '/chat/completions');
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${target.chatApiKey}` },
+      body: JSON.stringify({
+        model: target.chatModel,
+        messages: [{ role: 'system', content: systemMsg }, { role: 'user', content: userMsg }],
+        temperature: 0.2,
+      }),
+    });
+  } catch (e) {
+    throw new ApiError(0, String(e), '对话模型网络错误：' + e.message);
+  }
+  if (!res.ok) {
+    const text = await safeText(res);
+    throw new ApiError(res.status, text, '对话模型：' + friendlyError(res.status, text));
+  }
+  const json = await res.json();
+  const correctedRaw = json.choices?.[0]?.message?.content || '';
+
+  // 解析 [N] 文本 格式，缺失的 segment 保留原文
+  const correctedTexts = transcript.segments.map((s) => s.text);
+  for (const line of correctedRaw.split('\n')) {
+    const m = line.match(/^\[(\d+)\]\s*(.*)/);
+    if (m) {
+      const idx = parseInt(m[1]);
+      if (idx >= 0 && idx < correctedTexts.length) correctedTexts[idx] = m[2].trim();
+    }
+  }
+
+  return {
+    ...transcript,
+    segments: transcript.segments.map((seg, i) => {
+      const newText = correctedTexts[i];
+      if (newText === seg.text) return seg;
+      return { ...seg, text: newText, words: synthWordsFromText(newText, seg.start, seg.end) };
+    }),
+  };
+}
+
 function makeSilenceWav(seconds) {
   const sampleRate = 8000;
   const numSamples = Math.floor(sampleRate * seconds);

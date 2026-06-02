@@ -8,6 +8,8 @@ let _container = null;
 let _rafId = 0;
 let _currentIdx = -1;
 let _onWordChange = null;
+let _pendingSeek = null;
+let _durationListener = null;
 
 export function bind({ audio, flatWords, container, onWordChange }) {
   unbind();
@@ -38,11 +40,15 @@ export function unbind() {
     _audio.removeEventListener('seeked', _force);
     _audio.removeEventListener('seeking', _force);
     _audio.removeEventListener('timeupdate', _force);
+    if (_durationListener) {
+      _audio.removeEventListener('durationchange', _durationListener);
+    }
   }
   if (_currentIdx >= 0 && _flat[_currentIdx]?.el) {
     _flat[_currentIdx].el.classList.remove('active');
   }
   _audio = null; _flat = []; _container = null; _onWordChange = null; _currentIdx = -1;
+  _pendingSeek = null; _durationListener = null;
 }
 
 export function start() {
@@ -65,18 +71,41 @@ function _force() {
   if (_audio) _update(_audio.currentTime);
 }
 
+function _seekTo(t) {
+  const dur = _audio.duration;
+  if (Number.isFinite(dur) && dur > 0) {
+    _audio.currentTime = Math.min(t, dur - 0.05);
+    _audio.play().catch(() => {});
+    return;
+  }
+  // duration 尚未解析（WebM/MediaRecorder 的 Infinity 情形）：
+  // 记录目标时间，注册 durationchange 等待真实时长解析后再跳转。
+  _pendingSeek = t;
+  if (_durationListener) return; // 已在等待，更新 _pendingSeek 即可
+  _durationListener = () => {
+    const d = _audio.duration;
+    if (!Number.isFinite(d) || d <= 0) return; // 还没解析好，继续等
+    _audio.removeEventListener('durationchange', _durationListener);
+    _durationListener = null;
+    if (_pendingSeek !== null) {
+      const target = _pendingSeek;
+      _pendingSeek = null;
+      _audio.currentTime = Math.min(target, d - 0.05);
+      _audio.play().catch(() => {});
+    }
+  };
+  _audio.addEventListener('durationchange', _durationListener);
+  // 触发浏览器扫描文件末尾以得到真实时长
+  try { _audio.currentTime = 1e7; } catch { /* ignore */ }
+}
+
 function _onClick(e) {
   // 编辑模式下不寻迹（避免点击修改文本时跳音频）
   if (_container?.getAttribute('contenteditable') === 'true') return;
   const w = e.target.closest('.w');
   if (!w || !_audio) return;
   const t = parseFloat(w.dataset.start);
-  if (Number.isFinite(t)) {
-    // 防御：duration 已知时夹取到有效范围，避免越界被浏览器钳制回 0
-    const dur = _audio.duration;
-    _audio.currentTime = Number.isFinite(dur) && dur > 0 ? Math.min(t, dur - 0.05) : t;
-    _audio.play().catch(() => {});
-  }
+  if (Number.isFinite(t)) _seekTo(t);
 }
 
 // 二分查找：第一个 end > t 的词，且 start <= t；若 t 落在 gap 中返回最近的下一个词

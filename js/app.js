@@ -1,6 +1,6 @@
 // app.js — 入口与编排
 import * as Storage from './storage.js';
-import { transcribe, ApiError } from './api.js';
+import { transcribe, chatCorrectTranscript, ApiError } from './api.js';
 import { Recorder } from './recorder.js';
 import { render as renderTranscript, getTranscript, getFlatWords, formatTime } from './transcript.js';
 import * as Sync from './sync.js';
@@ -9,13 +9,13 @@ import { parseCommand } from './voicecmd.js';
 import { downloadMarkdown } from './export.js';
 import { GUIZHOU_DIALECT_PRESET } from './dialect.js';
 
-// === 转写提示词预设 ===
+// === 转写提示词预设（用于对话/纠错模型的后处理指令）===
 const PROMPT_PRESETS = [
-  { id: 'guizhou', label: '方言：贵州话', text: '当前上传的语音为贵州方言，请按方言习惯准确转写。' },
+  { id: 'guizhou', label: '方言：贵州话', text: '以下为贵州方言转写，请按方言习惯纠错（近音字、方言词汇等）。' },
   { id: 'clean',   label: '清理语气词',   text: '请删除无意义的重复语气词，例如「嗯」「哦」「呃」「啊」等。' },
-  { id: 'names',   label: '保留人名地名', text: '请保留语音中出现的人名和地名，不要简化或省略。' },
+  { id: 'names',   label: '保留人名地名', text: '请保留转写中出现的人名和地名，不要简化或省略。' },
   { id: 'english', label: '保留英文原词', text: '涉及英文单词时，请保留原始英文拼写，不要翻译或音译。' },
-  { id: 'fluency', label: '语义通顺',     text: '请根据上下语境和所识别文本，保持转写结果语义通顺。' },
+  { id: 'fluency', label: '语义通顺',     text: '请根据上下语境，保持转写结果语义通顺，纠正明显的识别错误。' },
 ];
 
 // === 应用状态 ===
@@ -47,6 +47,7 @@ const els = {
   closeSettings: $('close-settings'),
   settingsMask: $('settings-mask'),
   cfgProvider: $('cfg-provider'),
+  cfgChatProvider: $('cfg-chat-provider'),
   cfgName: $('cfg-name'),
   cfgSttBase: $('cfg-stt-base'),
   cfgSttKey: $('cfg-stt-key'),
@@ -59,6 +60,7 @@ const els = {
   presetList: $('preset-list'),
   promptPresets: $('prompt-presets'),
   promptText: $('prompt-text'),
+  promptChatHint: $('prompt-chat-hint'),
   importDialect: $('import-dialect'),
   dictCount: $('dict-count'),
   dictHits: $('dict-hits'),
@@ -138,6 +140,31 @@ function applyProviderTemplate(id) {
   els.cfgSttBase.value = tpl.sttBaseUrl;
   els.cfgSttModel.value = tpl.sttModel;
   if (!els.cfgName.value.trim()) els.cfgName.value = tpl.name;
+}
+function populateChatProviderSelect() {
+  els.cfgChatProvider.innerHTML = '';
+  Storage.CHAT_PROVIDER_PRESETS.forEach((tpl) => {
+    const opt = document.createElement('option');
+    opt.value = tpl.id;
+    opt.textContent = tpl.name;
+    els.cfgChatProvider.appendChild(opt);
+  });
+}
+function applyChatProviderTemplate(id) {
+  const tpl = Storage.CHAT_PROVIDER_PRESETS.find((t) => t.id === id);
+  if (!tpl || tpl.id === 'custom') return;
+  els.cfgChatBase.value = tpl.chatBaseUrl;
+  els.cfgChatModel.value = tpl.chatModel;
+}
+
+function isChatModelConfigured() {
+  const p = Storage.getActivePreset();
+  return !!(p.chatBaseUrl && p.chatApiKey && p.chatModel);
+}
+function updatePromptHint() {
+  if (!els.promptChatHint) return;
+  const hasPrompt = (els.promptText?.value || '').trim() !== '';
+  els.promptChatHint.classList.toggle('hidden', !hasPrompt || isChatModelConfigured());
 }
 
 function readForm() {
@@ -357,17 +384,36 @@ async function doTranscribe(blob, sourceName) {
   setTaskStatus('转写中…', 'warn');
   try {
     const t0 = performance.now();
-    const tr = await transcribe(blob, {
-      filename: sourceName || 'audio',
-      prompt: getCurrentPrompt() || undefined,
-    });
-    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+    // prompt 不再发给 STT，仅用于后续对话模型纠错
+    const tr = await transcribe(blob, { filename: sourceName || 'audio' });
+    const sttElapsed = ((performance.now() - t0) / 1000).toFixed(1);
+
+    let finalTr = tr;
+    const prompt = getCurrentPrompt();
+    if (prompt) {
+      const p = Storage.getActivePreset();
+      if (p.chatBaseUrl && p.chatApiKey && p.chatModel) {
+        setTaskStatus(`STT ${sttElapsed}s · 纠错中…`, 'warn');
+        try {
+          finalTr = await chatCorrectTranscript(tr, prompt, p);
+        } catch (ce) {
+          console.error('chat correction failed:', ce);
+          toast('对话模型纠错失败，显示原始转写：' + ce.message, 'warn');
+          finalTr = tr;
+        }
+      } else {
+        toast('转写提示词需要配置对话/纠错模型才能生效（设置 → 展开「对话/纠错模型」）', 'warn');
+      }
+    }
+
+    const totalElapsed = ((performance.now() - t0) / 1000).toFixed(1);
     // 字典拦截
-    const hits = Evolution.applyDict(tr);
-    state.transcript = tr;
-    state.originalSegmentTexts = tr.segments.map((s) => s.text);
+    const hits = Evolution.applyDict(finalTr);
+    state.transcript = finalTr;
+    state.originalSegmentTexts = finalTr.segments.map((s) => s.text);
     renderAll();
-    setTaskStatus(`转写完成 ${elapsed}s · 字典命中 ${hits}`, 'ok');
+    const corrected = prompt && isChatModelConfigured();
+    setTaskStatus(`转写${corrected ? '+纠错' : ''}完成 ${totalElapsed}s · 字典命中 ${hits}`, 'ok');
     if (hits > 0) toast(`进化字典已生效：${hits} 处自动修正`, 'ok');
   } catch (e) {
     console.error(e);
@@ -400,21 +446,26 @@ function loadAudioBlob(blob, name) {
 }
 
 // MediaRecorder 的 WebM/Opus 不写时长，加载后 duration 会是 Infinity，
-// 导致点击靠后文本时 currentTime 越界被钳制回 0（“只能从头开始”）。
-// 这里强制浏览器跳到“无穷远”读出真实时长，再复位到 0，使整段可跳转。
+// 导致点击靠后文本时 currentTime 越界被钳制回 0（”只能从头开始”）。
+// 强制浏览器跳到”无穷远”触发 durationchange，得到真实时长后复位到 0。
+// sync.js 的 _seekTo() 也有相同机制作为二重保障。
 function primeDuration(audio) {
-  const onMeta = () => {
-    audio.removeEventListener('loadedmetadata', onMeta);
-    if (audio.duration === Infinity || Number.isNaN(audio.duration)) {
-      const onSeeked = () => {
-        audio.removeEventListener('seeked', onSeeked);
+  const tryResolve = () => {
+    if (!Number.isFinite(audio.duration) || audio.duration <= 0) {
+      const onDuration = () => {
+        if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
+        audio.removeEventListener('durationchange', onDuration);
         try { audio.currentTime = 0; } catch { /* ignore */ }
       };
-      audio.addEventListener('seeked', onSeeked);
+      audio.addEventListener('durationchange', onDuration);
       try { audio.currentTime = 1e7; } catch { /* ignore */ }
     }
   };
-  audio.addEventListener('loadedmetadata', onMeta);
+  if (audio.readyState >= 1) {
+    tryResolve();
+  } else {
+    audio.addEventListener('loadedmetadata', tryResolve, { once: true });
+  }
 }
 
 function handleFile(file) {
@@ -617,6 +668,7 @@ function bindEvents() {
   els.presetSelect.onchange = () => {
     Storage.setActivePreset(parseInt(els.presetSelect.value, 10));
     refreshAll();
+    updatePromptHint();
     toast('已切换基座：' + Storage.getActivePreset().name, 'ok');
   };
 
@@ -629,21 +681,29 @@ function bindEvents() {
     Storage.upsertPreset(p, _editingPresetIdx);
     _editingPresetIdx = -1;
     refreshAll();
+    updatePromptHint();
     toast('已保存预设', 'ok');
   };
   els.cfgTest.onclick = async () => {
-    // 用表单当前值测试，无需先保存为预设
     const p = readForm();
     if (!p.sttBaseUrl || !p.sttApiKey) {
-      toast('请先填写 Base URL 和 API Key 再测试', 'warn');
+      toast('请先填写 STT Base URL 和 API Key 再测试', 'warn');
       return;
     }
-    setTaskStatus('测试连接中…', 'warn');
+    setTaskStatus('测试 STT 连接中…', 'warn');
     try {
-      const { pingConfig } = await import('./api.js');
+      const { pingConfig, pingChatConfig } = await import('./api.js');
       await pingConfig(p);
-      setTaskStatus('连接正常', 'ok');
-      toast('连接成功', 'ok');
+      const hasChatCfg = p.chatBaseUrl && p.chatApiKey && p.chatModel;
+      if (hasChatCfg) {
+        setTaskStatus('STT 正常，测试对话模型…', 'warn');
+        await pingChatConfig(p);
+        setTaskStatus('STT + 对话模型均连接正常', 'ok');
+        toast('STT 和对话模型连接均成功', 'ok');
+      } else {
+        setTaskStatus('STT 连接正常（未配置对话模型）', 'ok');
+        toast('STT 连接成功', 'ok');
+      }
     } catch (e) {
       setTaskStatus('连接失败', 'err');
       toast('连接失败：' + e.message, 'err');
@@ -652,11 +712,13 @@ function bindEvents() {
 
   // 厂商预设选择
   els.cfgProvider.onchange = () => applyProviderTemplate(els.cfgProvider.value);
+  els.cfgChatProvider.onchange = () => applyChatProviderTemplate(els.cfgChatProvider.value);
 
   // 转写提示词（文本框直接编辑）
   els.promptText.oninput = () => {
     Storage.setSttPrompt(els.promptText.value);
     _syncCheckboxes();
+    updatePromptHint();
   };
 
   // 导入贵州方言词库（可选）
@@ -737,8 +799,10 @@ function bindEvents() {
 function init() {
   bindEvents();
   populateProviderSelect();
+  populateChatProviderSelect();
   initPromptUI();
   refreshAll();
+  updatePromptHint();
   if (!Storage.isApiConfigured()) {
     setTimeout(openSettings, 200);
   }

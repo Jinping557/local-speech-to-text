@@ -215,6 +215,13 @@ input:focus, select:focus, textarea:focus {
   background: rgba(74, 158, 255, .12);
 }
 .prompt-cb-item input { cursor: pointer; }
+.prompt-box .hint {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.prompt-box .hint.warn { color: var(--warn); }
+.hidden { display: none !important; }
 
 /* === transcript panel === */
 .transcript-toolbar {
