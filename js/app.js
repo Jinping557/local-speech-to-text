@@ -7,6 +7,7 @@ import * as Sync from './sync.js';
 import * as Evolution from './evolution.js';
 import { parseCommand } from './voicecmd.js';
 import { downloadMarkdown } from './export.js';
+import { GUIZHOU_DIALECT_PRESET } from './dialect.js';
 
 // === 应用状态 ===
 const state = {
@@ -36,6 +37,7 @@ const els = {
   openSettings: $('open-settings'),
   closeSettings: $('close-settings'),
   settingsMask: $('settings-mask'),
+  cfgProvider: $('cfg-provider'),
   cfgName: $('cfg-name'),
   cfgSttBase: $('cfg-stt-base'),
   cfgSttKey: $('cfg-stt-key'),
@@ -46,6 +48,9 @@ const els = {
   cfgSave: $('cfg-save'),
   cfgTest: $('cfg-test'),
   presetList: $('preset-list'),
+  promptPreset: $('prompt-preset'),
+  promptCustom: $('prompt-custom'),
+  importDialect: $('import-dialect'),
   dictCount: $('dict-count'),
   dictHits: $('dict-hits'),
   rulePattern: $('rule-pattern'),
@@ -99,6 +104,7 @@ function closeSettings() {
 }
 function fillFormFromActive() {
   const p = Storage.getActivePreset();
+  els.cfgProvider.value = 'custom';
   els.cfgName.value = p.name || '';
   els.cfgSttBase.value = p.sttBaseUrl || '';
   els.cfgSttKey.value = p.sttApiKey || '';
@@ -107,6 +113,24 @@ function fillFormFromActive() {
   els.cfgChatKey.value = p.chatApiKey || '';
   els.cfgChatModel.value = p.chatModel || '';
 }
+// 厂商预设下拉：选名字自动填 Base URL 与默认模型（不动 API Key）
+function populateProviderSelect() {
+  els.cfgProvider.innerHTML = '';
+  Storage.PROVIDER_PRESETS.forEach((tpl) => {
+    const opt = document.createElement('option');
+    opt.value = tpl.id;
+    opt.textContent = tpl.name;
+    els.cfgProvider.appendChild(opt);
+  });
+}
+function applyProviderTemplate(id) {
+  const tpl = Storage.PROVIDER_PRESETS.find((t) => t.id === id);
+  if (!tpl || tpl.id === 'custom') return;
+  els.cfgSttBase.value = tpl.sttBaseUrl;
+  els.cfgSttModel.value = tpl.sttModel;
+  if (!els.cfgName.value.trim()) els.cfgName.value = tpl.name;
+}
+
 function readForm() {
   return {
     name: els.cfgName.value.trim() || '未命名预设',
@@ -151,6 +175,7 @@ function loadPresetIntoForm(idx) {
   const cfg = Storage.getApiConfig();
   const p = cfg.presets[idx];
   if (!p) return;
+  els.cfgProvider.value = 'custom';
   els.cfgName.value = p.name;
   els.cfgSttBase.value = p.sttBaseUrl;
   els.cfgSttKey.value = p.sttApiKey;
@@ -269,6 +294,29 @@ function renderRuleEditing(li, r) {
   });
 }
 
+// === 转写提示词 ===
+function initPromptUI() {
+  const saved = Storage.getSttPrompt();
+  const options = Array.from(els.promptPreset.options).map((o) => o.value);
+  if (!saved) {
+    els.promptPreset.value = '';
+    els.promptCustom.classList.add('hidden');
+  } else if (options.includes(saved)) {
+    els.promptPreset.value = saved;
+    els.promptCustom.classList.add('hidden');
+  } else {
+    // 与任何示例都不匹配 → 视为自定义
+    els.promptPreset.value = '__custom__';
+    els.promptCustom.value = saved;
+    els.promptCustom.classList.remove('hidden');
+  }
+}
+// 返回当前生效的提示词（空串表示无）
+function getCurrentPrompt() {
+  if (els.promptPreset.value === '__custom__') return els.promptCustom.value.trim();
+  return els.promptPreset.value;
+}
+
 // === 转写主流程 ===
 async function doTranscribe(blob, sourceName) {
   if (!Storage.isApiConfigured()) {
@@ -279,7 +327,10 @@ async function doTranscribe(blob, sourceName) {
   setTaskStatus('转写中…', 'warn');
   try {
     const t0 = performance.now();
-    const tr = await transcribe(blob, { filename: sourceName || 'audio' });
+    const tr = await transcribe(blob, {
+      filename: sourceName || 'audio',
+      prompt: getCurrentPrompt() || undefined,
+    });
     const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
     // 字典拦截
     const hits = Evolution.applyDict(tr);
@@ -315,6 +366,25 @@ function loadAudioBlob(blob, name) {
   els.audio.src = URL.createObjectURL(blob);
   els.audioMeta.textContent = `${name || '录音'} · ${(blob.size / 1024).toFixed(1)} KB · ${blob.type || '未知格式'}`;
   els.audio.load();
+  primeDuration(els.audio);
+}
+
+// MediaRecorder 的 WebM/Opus 不写时长，加载后 duration 会是 Infinity，
+// 导致点击靠后文本时 currentTime 越界被钳制回 0（“只能从头开始”）。
+// 这里强制浏览器跳到“无穷远”读出真实时长，再复位到 0，使整段可跳转。
+function primeDuration(audio) {
+  const onMeta = () => {
+    audio.removeEventListener('loadedmetadata', onMeta);
+    if (audio.duration === Infinity || Number.isNaN(audio.duration)) {
+      const onSeek = () => {
+        audio.removeEventListener('timeupdate', onSeek);
+        try { audio.currentTime = 0; } catch { /* ignore */ }
+      };
+      audio.addEventListener('timeupdate', onSeek);
+      try { audio.currentTime = 1e7; } catch { /* ignore */ }
+    }
+  };
+  audio.addEventListener('loadedmetadata', onMeta);
 }
 
 function handleFile(file) {
@@ -532,15 +602,60 @@ function bindEvents() {
     toast('已保存预设', 'ok');
   };
   els.cfgTest.onclick = async () => {
+    // 用表单当前值测试，无需先保存为预设
+    const p = readForm();
+    if (!p.sttBaseUrl || !p.sttApiKey) {
+      toast('请先填写 Base URL 和 API Key 再测试', 'warn');
+      return;
+    }
     setTaskStatus('测试连接中…', 'warn');
     try {
-      const { pingActive } = await import('./api.js');
-      await pingActive();
+      const { pingConfig } = await import('./api.js');
+      await pingConfig(p);
       setTaskStatus('连接正常', 'ok');
       toast('连接成功', 'ok');
     } catch (e) {
       setTaskStatus('连接失败', 'err');
       toast('连接失败：' + e.message, 'err');
+    }
+  };
+
+  // 厂商预设选择
+  els.cfgProvider.onchange = () => applyProviderTemplate(els.cfgProvider.value);
+
+  // 转写提示词
+  els.promptPreset.onchange = () => {
+    if (els.promptPreset.value === '__custom__') {
+      els.promptCustom.classList.remove('hidden');
+      els.promptCustom.focus();
+      Storage.setSttPrompt(els.promptCustom.value.trim());
+    } else {
+      els.promptCustom.classList.add('hidden');
+      Storage.setSttPrompt(els.promptPreset.value);
+    }
+  };
+  els.promptCustom.oninput = () => {
+    if (els.promptPreset.value === '__custom__') {
+      Storage.setSttPrompt(els.promptCustom.value.trim());
+    }
+  };
+
+  // 导入贵州方言词库（可选）
+  els.importDialect.onclick = () => {
+    const total = GUIZHOU_DIALECT_PRESET.length;
+    if (!confirm(`将导入 ${total} 条贵州方言常用词到进化字典（已存在的同名词条会被更新）。继续？`)) return;
+    let count = 0;
+    GUIZHOU_DIALECT_PRESET.forEach((r) => {
+      if (Storage.addRule({ pattern: r.pattern, replacement: r.replacement, source: 'preset' })) count++;
+    });
+    // 若已有转写，立即应用一次
+    if (state.transcript) {
+      const hits = Evolution.applyDict(state.transcript);
+      renderAll();
+      toast(`已导入方言词库 ${count} 条（本次命中 ${hits}）`, 'ok');
+    } else {
+      refreshDictPanel();
+      toast(`已导入方言词库 ${count} 条`, 'ok');
     }
   };
 
@@ -602,6 +717,8 @@ function bindEvents() {
 // === 初始化 ===
 function init() {
   bindEvents();
+  populateProviderSelect();
+  initPromptUI();
   refreshAll();
   if (!Storage.isApiConfigured()) {
     setTimeout(openSettings, 200);

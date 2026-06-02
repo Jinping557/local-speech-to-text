@@ -3,6 +3,7 @@
 
 const KEY_API = 'qyl.apiConfig';
 const KEY_DICT = 'qyl.evolutionDict';
+const KEY_PROMPT = 'qyl.sttPrompt';
 
 const DEFAULT_PRESET = {
   name: '通用 Whisper',
@@ -13,6 +14,16 @@ const DEFAULT_PRESET = {
   chatApiKey: '',
   chatModel: '',
 };
+
+// 常见厂商模板：选择名字即自动填入 Base URL 与默认模型，只需再填 API Key。
+// id 为 'custom' 时不覆盖任何字段。
+export const PROVIDER_PRESETS = [
+  { id: 'custom',      name: '自定义',             sttBaseUrl: '',                                                  sttModel: '' },
+  { id: 'openai',      name: 'OpenAI',             sttBaseUrl: 'https://api.openai.com/v1',                         sttModel: 'whisper-1' },
+  { id: 'siliconflow', name: 'SiliconFlow 硅基流动', sttBaseUrl: 'https://api.siliconflow.cn/v1',                    sttModel: 'FunAudioLLM/SenseVoiceSmall' },
+  { id: 'dashscope',   name: '阿里通义 DashScope',  sttBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', sttModel: 'paraformer-realtime-v2' },
+  { id: 'groq',        name: 'Groq',               sttBaseUrl: 'https://api.groq.com/openai/v1',                    sttModel: 'whisper-large-v3' },
+];
 
 function readJSON(key, fallback) {
   try {
@@ -77,6 +88,24 @@ export function deletePreset(index) {
 export function isApiConfigured() {
   const p = getActivePreset();
   return Boolean(p && p.sttBaseUrl && p.sttApiKey && p.sttModel);
+}
+
+// === 转写提示词（全局，跨会话记忆；默认空 = 无）===
+
+export function getSttPrompt() {
+  try {
+    return localStorage.getItem(KEY_PROMPT) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setSttPrompt(text) {
+  try {
+    localStorage.setItem(KEY_PROMPT, text || '');
+  } catch {
+    /* ignore */
+  }
 }
 
 // === Evolution dictionary ===

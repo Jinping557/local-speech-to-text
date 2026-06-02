@@ -21,7 +21,8 @@ function joinUrl(base, path) {
  *   { language, duration, segments: [{id,start,end,text,words:[{start,end,text}]}] }
  */
 export async function transcribe(audioBlob, opts = {}) {
-  const cfg = getActivePreset();
+  // opts.config 可显式覆盖（用于「即填即测」，无需先保存预设）
+  const cfg = opts.config || getActivePreset();
   if (!cfg.sttApiKey) throw new ApiError(0, '', '未配置 STT API Key');
 
   const fd = new FormData();
@@ -165,14 +166,21 @@ function guessExt(mime) {
   return 'webm';
 }
 
-// 简单的连通性检查：HEAD 请求 base 路径，或直接返回 true（不少厂商不支持 OPTIONS）
-export async function pingActive() {
-  const cfg = getActivePreset();
-  if (!cfg.sttApiKey) throw new ApiError(0, '', '未配置 API Key');
+// 连通性检查：用一段极短静音 wav 实际打一次 STT。
+// 传入 cfg 可测试任意（未保存的）配置；缺省回退到当前 active 预设。
+export async function pingConfig(cfg) {
+  const target = cfg || getActivePreset();
+  if (!target.sttApiKey) throw new ApiError(0, '', '未配置 API Key');
+  if (!target.sttBaseUrl) throw new ApiError(0, '', '未配置 Base URL');
   // 构造一个极短的静音 wav 测试（200ms）
   const blob = makeSilenceWav(0.2);
-  await transcribe(blob, { filename: 'ping.wav' });
+  await transcribe(blob, { filename: 'ping.wav', config: target });
   return true;
+}
+
+// 向后兼容：测试当前 active 预设
+export async function pingActive() {
+  return pingConfig(getActivePreset());
 }
 
 function makeSilenceWav(seconds) {

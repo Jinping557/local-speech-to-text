@@ -72,7 +72,9 @@ function _onClick(e) {
   if (!w || !_audio) return;
   const t = parseFloat(w.dataset.start);
   if (Number.isFinite(t)) {
-    _audio.currentTime = t;
+    // 防御：duration 已知时夹取到有效范围，避免越界被浏览器钳制回 0
+    const dur = _audio.duration;
+    _audio.currentTime = Number.isFinite(dur) && dur > 0 ? Math.min(t, dur - 0.05) : t;
     _audio.play().catch(() => {});
   }
 }
