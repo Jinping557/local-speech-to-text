@@ -43,9 +43,10 @@
       </div>
 
       <div class="prompt-box">
-        <label>转写提示词（可选，发送给模型）</label>
+        <label>转写提示词（可选，用于对话模型纠错）</label>
         <div id="prompt-presets" class="prompt-presets"></div>
         <textarea id="prompt-text" rows="3" placeholder="可直接编辑，或勾选上方预设自动填入…"></textarea>
+        <div id="prompt-chat-hint" class="hint warn hidden">⚠ 需在设置中配置「对话/纠错模型」才能使用此功能</div>
       </div>
 
       <div class="player">
@@ -145,7 +146,12 @@
         </div>
 
         <details class="advanced">
-          <summary>对话/纠错模型（可选）</summary>
+          <summary>对话/纠错模型（转写提示词需配置此项）</summary>
+          <p class="hint">请选择支持对话的大语言模型（LLM / Chat 模型），不是语音识别模型。推荐选性价比高的轻量版。</p>
+          <div class="form-row">
+            <label>Chat 厂商预设</label>
+            <select id="cfg-chat-provider"></select>
+          </div>
           <div class="form-row">
             <label>Chat Base URL</label>
             <input id="cfg-chat-base" type="url" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://api.deepseek.com/v1" />

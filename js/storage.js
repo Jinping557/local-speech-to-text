@@ -25,6 +25,16 @@ export const PROVIDER_PRESETS = [
   { id: 'groq',        name: 'Groq',               sttBaseUrl: 'https://api.groq.com/openai/v1',                    sttModel: 'whisper-large-v3' },
 ];
 
+// 对话/纠错模型厂商模板。需要支持 /chat/completions 的大语言模型（LLM），不是 STT 模型。
+export const CHAT_PROVIDER_PRESETS = [
+  { id: 'custom',      name: '自定义',                    chatBaseUrl: '',                                                  chatModel: '' },
+  { id: 'deepseek',    name: 'DeepSeek ⭐ 性价比首选',    chatBaseUrl: 'https://api.deepseek.com/v1',                      chatModel: 'deepseek-chat' },
+  { id: 'siliconflow', name: 'SiliconFlow（DeepSeek-V3）', chatBaseUrl: 'https://api.siliconflow.cn/v1',                   chatModel: 'deepseek-ai/DeepSeek-V3' },
+  { id: 'dashscope',   name: '阿里通义 Qwen-Turbo',       chatBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', chatModel: 'qwen-turbo' },
+  { id: 'groq',        name: 'Groq（免费额度）',           chatBaseUrl: 'https://api.groq.com/openai/v1',                   chatModel: 'llama-3.3-70b-versatile' },
+  { id: 'openai',      name: 'OpenAI GPT-4o-mini',        chatBaseUrl: 'https://api.openai.com/v1',                        chatModel: 'gpt-4o-mini' },
+];
+
 function readJSON(key, fallback) {
   try {
     const s = localStorage.getItem(key);
