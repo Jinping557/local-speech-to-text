@@ -1,7 +1,7 @@
 // evolution.js — 进化字典：拦截 API 输出 + 词级替换 + 命中统计
 // 字典存于 storage.js；本模块负责"应用"逻辑
 
-import { getDict, saveDict, addRule as storageAddRule, deleteRule as storageDeleteRule } from './storage.js';
+import { getDict, saveDict, addRule as storageAddRule, deleteRule as storageDeleteRule } from './storage.js?v=2026-06-03-1';
 
 let _sessionHits = 0;
 

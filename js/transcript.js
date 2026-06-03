@@ -37,6 +37,7 @@ export function render(transcript, container) {
       span.dataset.end = String(w.end);
       span.dataset.idx = String(globalIdx);
       span.dataset.seg = String(s);
+      span.title = formatTime(w.start); // 悬停显示该词时间，便于核对时间戳
       if (w._evolved) span.classList.add('evolved');
       span.textContent = w.text;
       p.appendChild(span);

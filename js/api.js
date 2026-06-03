@@ -1,7 +1,7 @@
 // api.js — OpenAI 兼容协议客户端
 // /audio/transcriptions → verbose_json + word timestamps
 
-import { getActivePreset } from './storage.js';
+import { getActivePreset } from './storage.js?v=2026-06-03-1';
 
 export class ApiError extends Error {
   constructor(status, body, message) {

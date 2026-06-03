@@ -1,14 +1,18 @@
 // app.js — 入口与编排
-import * as Storage from './storage.js';
-import { transcribe, chatCorrectTranscript, synthWordsFromText, ApiError } from './api.js';
-import { Recorder } from './recorder.js';
-import { render as renderTranscript, getTranscript, getFlatWords, formatTime } from './transcript.js';
-import * as Sync from './sync.js';
-import * as Evolution from './evolution.js';
-import { parseCommand } from './voicecmd.js';
-import { downloadMarkdown } from './export.js';
-import { GUIZHOU_DIALECT_PRESET } from './dialect.js';
-import { toSeekableBlob } from './audiofix.js';
+import * as Storage from './storage.js?v=2026-06-03-1';
+import { transcribe, chatCorrectTranscript, synthWordsFromText, ApiError } from './api.js?v=2026-06-03-1';
+import { Recorder } from './recorder.js?v=2026-06-03-1';
+import { render as renderTranscript, getTranscript, getFlatWords, formatTime } from './transcript.js?v=2026-06-03-1';
+import * as Sync from './sync.js?v=2026-06-03-1';
+import * as Evolution from './evolution.js?v=2026-06-03-1';
+import { parseCommand } from './voicecmd.js?v=2026-06-03-1';
+import { downloadMarkdown } from './export.js?v=2026-06-03-1';
+import { GUIZHOU_DIALECT_PRESET } from './dialect.js?v=2026-06-03-1';
+import { toSeekableBlob } from './audiofix.js?v=2026-06-03-1';
+
+// 前端构建版本：发布时手动 +1，并与 index.html 的 ?v= 查询串保持一致。
+// 显示在底部状态栏，用于确认线上是否已是最新代码。
+const BUILD = '2026-06-03-1';
 
 // === 转写提示词预设（用于对话/纠错模型的后处理指令）===
 const PROMPT_PRESETS = [
@@ -73,6 +77,7 @@ const els = {
   exportMd: $('export-md'),
   statusApi: $('status-api'),
   statusTask: $('status-task'),
+  buildStamp: $('build-stamp'),
   toasts: $('toasts'),
 };
 
@@ -437,6 +442,8 @@ function renderAll() {
     audio: els.audio,
     flatWords: getFlatWords(),
     container: els.transcript,
+    // 点击词跳转时给出可见反馈：显示真正跳到的时间，便于核对时间戳是否塌缩
+    onSeek: (t) => toast('▶ 跳转到 ' + formatTime(t)),
   });
   refreshDictPanel();
   logTimingDiagnostics();
@@ -863,6 +870,7 @@ function bindEvents() {
 
 // === 初始化 ===
 function init() {
+  if (els.buildStamp) els.buildStamp.textContent = 'build ' + BUILD;
   bindEvents();
   populateProviderSelect();
   populateChatProviderSelect();
