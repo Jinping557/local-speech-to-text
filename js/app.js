@@ -107,12 +107,17 @@ function setTaskStatus(text, kind = '') {
 
 // === 设置抽屉 ===
 function openSettings() {
+  els.settingsMask.removeAttribute('inert');
   els.settingsMask.classList.remove('hidden');
   fillFormFromActive();
   refreshPresetList();
 }
 function closeSettings() {
+  // 先移走焦点再隐藏，避免 inert/aria-hidden 抱住带焦点的元素（控制台告警）
+  const focused = document.activeElement;
+  if (focused && els.settingsMask.contains(focused)) focused.blur();
   els.settingsMask.classList.add('hidden');
+  els.settingsMask.setAttribute('inert', '');
 }
 function fillFormFromActive() {
   const p = Storage.getActivePreset();
