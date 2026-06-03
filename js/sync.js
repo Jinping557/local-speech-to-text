@@ -8,15 +8,17 @@ let _container = null;
 let _rafId = 0;
 let _currentIdx = -1;
 let _onWordChange = null;
+let _onSeek = null;
 let _pendingSeek = null;
 let _durationListener = null;
 
-export function bind({ audio, flatWords, container, onWordChange }) {
+export function bind({ audio, flatWords, container, onWordChange, onSeek }) {
   unbind();
   _audio = audio;
   _flat = flatWords || [];
   _container = container;
   _onWordChange = onWordChange || null;
+  _onSeek = onSeek || null;
   _currentIdx = -1;
 
   // 点击寻迹
@@ -47,7 +49,7 @@ export function unbind() {
   if (_currentIdx >= 0 && _flat[_currentIdx]?.el) {
     _flat[_currentIdx].el.classList.remove('active');
   }
-  _audio = null; _flat = []; _container = null; _onWordChange = null; _currentIdx = -1;
+  _audio = null; _flat = []; _container = null; _onWordChange = null; _onSeek = null; _currentIdx = -1;
   _pendingSeek = null; _durationListener = null;
 }
 
@@ -101,6 +103,7 @@ function _seekTo(t) {
 
 // 设置 currentTime 并播放；校验 seek 是否真正落点（诊断不可定位的音频）。
 function _applySeek(target) {
+  if (_onSeek) _onSeek(target); // 可见反馈：显示真正跳到的时间
   const onSeeked = () => {
     _audio.removeEventListener('seeked', onSeeked);
     if (target > 0.5 && _audio.currentTime < 0.3) {

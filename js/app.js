@@ -1,14 +1,18 @@
 // app.js — 入口与编排
-import * as Storage from './storage.js';
-import { transcribe, chatCorrectTranscript, ApiError } from './api.js';
-import { Recorder } from './recorder.js';
-import { render as renderTranscript, getTranscript, getFlatWords, formatTime } from './transcript.js';
-import * as Sync from './sync.js';
-import * as Evolution from './evolution.js';
-import { parseCommand } from './voicecmd.js';
-import { downloadMarkdown } from './export.js';
-import { GUIZHOU_DIALECT_PRESET } from './dialect.js';
-import { toSeekableBlob } from './audiofix.js';
+import * as Storage from './storage.js?v=2026-06-03-1';
+import { transcribe, chatCorrectTranscript, synthWordsFromText, ApiError } from './api.js?v=2026-06-03-1';
+import { Recorder } from './recorder.js?v=2026-06-03-1';
+import { render as renderTranscript, getTranscript, getFlatWords, formatTime } from './transcript.js?v=2026-06-03-1';
+import * as Sync from './sync.js?v=2026-06-03-1';
+import * as Evolution from './evolution.js?v=2026-06-03-1';
+import { parseCommand } from './voicecmd.js?v=2026-06-03-1';
+import { downloadMarkdown } from './export.js?v=2026-06-03-1';
+import { GUIZHOU_DIALECT_PRESET } from './dialect.js?v=2026-06-03-1';
+import { toSeekableBlob } from './audiofix.js?v=2026-06-03-1';
+
+// 前端构建版本：发布时手动 +1，并与 index.html 的 ?v= 查询串保持一致。
+// 显示在底部状态栏，用于确认线上是否已是最新代码。
+const BUILD = '2026-06-03-1';
 
 // === 转写提示词预设（用于对话/纠错模型的后处理指令）===
 const PROMPT_PRESETS = [
@@ -73,6 +77,7 @@ const els = {
   exportMd: $('export-md'),
   statusApi: $('status-api'),
   statusTask: $('status-task'),
+  buildStamp: $('build-stamp'),
   toasts: $('toasts'),
 };
 
@@ -107,12 +112,17 @@ function setTaskStatus(text, kind = '') {
 
 // === 设置抽屉 ===
 function openSettings() {
+  els.settingsMask.removeAttribute('inert');
   els.settingsMask.classList.remove('hidden');
   fillFormFromActive();
   refreshPresetList();
 }
 function closeSettings() {
+  // 先移走焦点再隐藏，避免 inert/aria-hidden 抱住带焦点的元素（控制台告警）
+  const focused = document.activeElement;
+  if (focused && els.settingsMask.contains(focused)) focused.blur();
   els.settingsMask.classList.add('hidden');
+  els.settingsMask.setAttribute('inert', '');
 }
 function fillFormFromActive() {
   const p = Storage.getActivePreset();
@@ -426,13 +436,66 @@ async function doTranscribe(blob, sourceName) {
 
 function renderAll() {
   if (!state.transcript) return;
+  reconcileTimingWithAudio();
   renderTranscript(state.transcript, els.transcript);
   Sync.bind({
     audio: els.audio,
     flatWords: getFlatWords(),
     container: els.transcript,
+    // 点击词跳转时给出可见反馈：显示真正跳到的时间，便于核对时间戳是否塌缩
+    onSeek: (t) => toast('▶ 跳转到 ' + formatTime(t)),
   });
   refreshDictPanel();
+  logTimingDiagnostics();
+  // 渲染时若音频时长尚未解析，待其就绪后再重建一次时间线
+  if (!Number.isFinite(els.audio.duration) || els.audio.duration <= 0) {
+    els.audio.addEventListener('durationchange', _reReconcileOnce, { once: true });
+  }
+}
+
+function _reReconcileOnce() {
+  if (state.transcript && !state.editing) renderAll();
+}
+
+// 安全网：若转写时间线明显短于真实音频（厂商时长缺失/塌缩），用真实音频时长
+// 按各段字数重建时间戳。仅在明显异常（不足真实时长 10% 且 <1.5s）时触发，
+// 避免破坏厂商给出的正常时间戳。
+function reconcileTimingWithAudio() {
+  const tr = state.transcript;
+  const audioDur = els.audio.duration;
+  if (!tr || !Number.isFinite(audioDur) || audioDur <= 0) return false;
+  const segs = tr.segments;
+  if (!segs || segs.length === 0) return false;
+  let maxEnd = 0;
+  for (const s of segs) {
+    if (Number.isFinite(s.end)) maxEnd = Math.max(maxEnd, s.end);
+    for (const w of (s.words || [])) if (Number.isFinite(w.end)) maxEnd = Math.max(maxEnd, w.end);
+  }
+  if (maxEnd > audioDur * 0.1 && maxEnd > 1.5) return false; // 时间线正常，不动
+  const lens = segs.map((s) => Math.max(1, Array.from(s.text || '').length));
+  const sum = lens.reduce((a, b) => a + b, 0) || 1;
+  let acc = 0;
+  for (let i = 0; i < segs.length; i++) {
+    const start = (audioDur * acc) / sum;
+    acc += lens[i];
+    const end = (audioDur * acc) / sum;
+    segs[i].start = start;
+    segs[i].end = end;
+    segs[i].words = synthWordsFromText(segs[i].text, start, end);
+  }
+  tr.duration = audioDur;
+  console.info(`[sync] 转写时间线(${maxEnd.toFixed(1)}s)远短于音频(${audioDur.toFixed(1)}s)，已按真实时长重建时间戳`);
+  return true;
+}
+
+function logTimingDiagnostics() {
+  const words = getFlatWords();
+  if (!words.length) return;
+  const sample = words.slice(0, 8).map((w) => +Number(w.start).toFixed(2));
+  const last = words[words.length - 1];
+  const dur = Number.isFinite(els.audio.duration) ? els.audio.duration.toFixed(2) : '未知';
+  console.debug(`[sync] 词数=${words.length} 首词起点样例=${JSON.stringify(sample)} ` +
+    `末词终点=${Number(last.end).toFixed(2)}s 音频时长=${dur}s`);
 }
 
 // === 文件加载 ===
@@ -807,6 +870,7 @@ function bindEvents() {
 
 // === 初始化 ===
 function init() {
+  if (els.buildStamp) els.buildStamp.textContent = 'build ' + BUILD;
   bindEvents();
   populateProviderSelect();
   populateChatProviderSelect();
