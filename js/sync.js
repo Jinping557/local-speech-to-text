@@ -128,7 +128,10 @@ function _onClick(e) {
   const w = e.target.closest('.w');
   if (!w || !_audio) return;
   const t = parseFloat(w.dataset.start);
-  if (Number.isFinite(t)) _seekTo(t);
+  if (Number.isFinite(t)) {
+    // 提前 0.15s 跳转，确保听到词首；避免刚好从 start 播放时错过辅音/声母
+    _seekTo(Math.max(0, t - 0.15));
+  }
 }
 
 // 二分查找：第一个 end > t 的词，且 start <= t；若 t 落在 gap 中返回最近的下一个词

@@ -6,10 +6,10 @@ const KEY_DICT = 'qyl.evolutionDict';
 const KEY_PROMPT = 'qyl.sttPrompt';
 
 const DEFAULT_PRESET = {
-  name: '通用 Whisper',
-  sttBaseUrl: 'https://api.openai.com/v1',
+  name: 'SiliconFlow 硅基流动',
+  sttBaseUrl: 'https://api.siliconflow.cn/v1',
   sttApiKey: '',
-  sttModel: 'whisper-1',
+  sttModel: 'FunAudioLLM/SenseVoiceSmall',
   chatBaseUrl: '',
   chatApiKey: '',
   chatModel: '',

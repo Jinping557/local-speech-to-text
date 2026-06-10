@@ -6,7 +6,7 @@ import { render as renderTranscript, getTranscript, getFlatWords, formatTime } f
 import * as Sync from './sync.js?v=2026-06-03-1';
 import * as Evolution from './evolution.js?v=2026-06-03-1';
 import { parseCommand } from './voicecmd.js?v=2026-06-03-1';
-import { downloadMarkdown } from './export.js?v=2026-06-03-1';
+import { downloadMarkdown, buildMarkdown } from './export.js?v=2026-06-03-1';
 import { GUIZHOU_DIALECT_PRESET } from './dialect.js?v=2026-06-03-1';
 import { toSeekableBlob } from './audiofix.js?v=2026-06-03-1';
 
@@ -75,6 +75,7 @@ const els = {
   ruleList: $('rule-list'),
   ruleListCount: $('rule-list-count'),
   exportMd: $('export-md'),
+  copyMd: $('copy-md'),
   statusApi: $('status-api'),
   statusTask: $('status-task'),
   buildStamp: $('build-stamp'),
@@ -715,6 +716,28 @@ function exportMarkdown() {
   toast('已导出 Markdown', 'ok');
 }
 
+function copyMarkdown() {
+  if (!state.transcript) { toast('暂无可复制内容', 'warn'); return; }
+  const md = buildMarkdown(state.transcript, {
+    sourceName: state.audioName || 'recording',
+    model: state.transcript._model,
+    dictHits: Evolution.getSessionHits(),
+  });
+  navigator.clipboard.writeText(md).then(() => {
+    toast('已复制 Markdown 到剪贴板', 'ok');
+  }).catch(() => {
+    // 降级方案
+    const ta = document.createElement('textarea');
+    ta.value = md;
+    ta.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); toast('已复制 Markdown 到剪贴板', 'ok'); }
+    catch { toast('复制失败，请手动复制', 'err'); }
+    ta.remove();
+  });
+}
+
 // === 全局刷新 ===
 function refreshAll() {
   setApiStatus();
@@ -859,6 +882,7 @@ function bindEvents() {
 
   // 导出
   els.exportMd.onclick = exportMarkdown;
+  els.copyMd.onclick = copyMarkdown;
 
   // 调试：D 键打印 drift
   document.addEventListener('keydown', (e) => {
