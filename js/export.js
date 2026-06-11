@@ -1,5 +1,5 @@
 // export.js — 导出 Markdown
-import { formatTime } from './transcript.js?v=2026-06-11-1';
+import { formatTime } from './transcript.js?v=2026-06-11-2';
 
 export function buildMarkdown(transcript, meta = {}) {
   const lines = [];

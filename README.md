@@ -31,7 +31,7 @@ npx http-server -p 8000
 
 首次启动会自动弹出「AI 模型配置」弹窗（master–detail 布局，参考 [next-ai-draw-io](https://github.com/DayuanJiang/next-ai-draw-io) 的模型配置设计）：
 
-- **左侧**为基座预设列表，底部「＋ 添加预设」可按厂商模板（`OpenAI` / `SiliconFlow 硅基流动` / `阿里通义 DashScope` / `Groq` / `自定义`）一键新建。
+- **左侧**为基座预设列表，底部「＋ 添加预设」可按厂商模板（`OpenAI` / `Groq` / `SiliconFlow 硅基流动` / `Qwen 阿里通义` / `GLM 智谱` / `自定义`）一键新建；模板已预填各厂商默认 Base URL 与语音识别模型，只需再填 Key。
 - **右侧**为所选预设的配置卡片：显示名称、转写模型（STT）与可选的对话/纠错模型，每个区块都有「厂商模板」下拉自动填 Base URL 与默认模型，只需再填 Key。
 - **改动即时保存**到本机浏览器，无需点保存按钮；API Key 输入框带显示/隐藏切换，旁边的「测试」按钮可单独验证 STT 或对话模型连通性。
 - 预设需点「设为使用中」激活后才参与转写；顶栏也可一键切换。

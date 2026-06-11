@@ -15,24 +15,31 @@ const DEFAULT_PRESET = {
   chatModel: '',
 };
 
-// 常见厂商模板：选择名字即自动填入 Base URL 与默认模型，只需再填 API Key。
-// id 为 'custom' 时不覆盖任何字段。
+// 厂商模板：选择名字即自动填入 Base URL 与默认模型，只需再填 API Key。
+// 厂商列表与默认 Base URL 参照 next-ai-draw-io 的 PROVIDER_INFO，但只保留
+// 提供 OpenAI 兼容 /audio/transcriptions 语音识别接口的厂商，模型一律为
+// 各家的语音识别（STT/ASR）模型。id 为 'custom' 时不覆盖任何字段。
 export const PROVIDER_PRESETS = [
-  { id: 'custom',      name: '自定义',             sttBaseUrl: '',                                                  sttModel: '' },
-  { id: 'openai',      name: 'OpenAI',             sttBaseUrl: 'https://api.openai.com/v1',                         sttModel: 'whisper-1' },
-  { id: 'siliconflow', name: 'SiliconFlow 硅基流动', sttBaseUrl: 'https://api.siliconflow.cn/v1',                    sttModel: 'FunAudioLLM/SenseVoiceSmall' },
-  { id: 'dashscope',   name: '阿里通义 DashScope',  sttBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', sttModel: 'paraformer-realtime-v2' },
-  { id: 'groq',        name: 'Groq',               sttBaseUrl: 'https://api.groq.com/openai/v1',                    sttModel: 'whisper-large-v3' },
+  { id: 'custom',      name: '自定义',              sttBaseUrl: '',                                                  sttModel: '' },
+  { id: 'openai',      name: 'OpenAI',              sttBaseUrl: 'https://api.openai.com/v1',                         sttModel: 'whisper-1' },
+  { id: 'groq',        name: 'Groq',                sttBaseUrl: 'https://api.groq.com/openai/v1',                    sttModel: 'whisper-large-v3' },
+  { id: 'siliconflow', name: 'SiliconFlow 硅基流动', sttBaseUrl: 'https://api.siliconflow.cn/v1',                     sttModel: 'FunAudioLLM/SenseVoiceSmall' },
+  { id: 'qwen',        name: 'Qwen 阿里通义',        sttBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', sttModel: 'paraformer-realtime-v2' },
+  { id: 'glm',         name: 'GLM 智谱',             sttBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',              sttModel: 'glm-asr' },
 ];
 
 // 对话/纠错模型厂商模板。需要支持 /chat/completions 的大语言模型（LLM），不是 STT 模型。
+// 厂商与默认 Base URL 同样参照 next-ai-draw-io，保留 OpenAI 兼容的部分。
 export const CHAT_PROVIDER_PRESETS = [
-  { id: 'custom',      name: '自定义',                    chatBaseUrl: '',                                                  chatModel: '' },
-  { id: 'deepseek',    name: 'DeepSeek ⭐ 性价比首选',    chatBaseUrl: 'https://api.deepseek.com/v1',                      chatModel: 'deepseek-chat' },
-  { id: 'siliconflow', name: 'SiliconFlow（DeepSeek-V3）', chatBaseUrl: 'https://api.siliconflow.cn/v1',                   chatModel: 'deepseek-ai/DeepSeek-V3' },
-  { id: 'dashscope',   name: '阿里通义 Qwen-Turbo',       chatBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', chatModel: 'qwen-turbo' },
-  { id: 'groq',        name: 'Groq（免费额度）',           chatBaseUrl: 'https://api.groq.com/openai/v1',                   chatModel: 'llama-3.3-70b-versatile' },
-  { id: 'openai',      name: 'OpenAI GPT-4o-mini',        chatBaseUrl: 'https://api.openai.com/v1',                        chatModel: 'gpt-4o-mini' },
+  { id: 'custom',      name: '自定义',                     chatBaseUrl: '',                                                  chatModel: '' },
+  { id: 'deepseek',    name: 'DeepSeek ⭐ 性价比首选',     chatBaseUrl: 'https://api.deepseek.com/v1',                       chatModel: 'deepseek-chat' },
+  { id: 'siliconflow', name: 'SiliconFlow（DeepSeek-V3）', chatBaseUrl: 'https://api.siliconflow.cn/v1',                     chatModel: 'deepseek-ai/DeepSeek-V3' },
+  { id: 'qwen',        name: 'Qwen 阿里通义',              chatBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', chatModel: 'qwen-turbo' },
+  { id: 'glm',         name: 'GLM 智谱（免费档）',          chatBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',              chatModel: 'glm-4-flash' },
+  { id: 'kimi',        name: 'Kimi 月之暗面',              chatBaseUrl: 'https://api.moonshot.cn/v1',                        chatModel: 'moonshot-v1-8k' },
+  { id: 'groq',        name: 'Groq（免费额度）',            chatBaseUrl: 'https://api.groq.com/openai/v1',                    chatModel: 'llama-3.3-70b-versatile' },
+  { id: 'openai',      name: 'OpenAI GPT-4o-mini',         chatBaseUrl: 'https://api.openai.com/v1',                         chatModel: 'gpt-4o-mini' },
+  { id: 'openrouter',  name: 'OpenRouter',                 chatBaseUrl: 'https://openrouter.ai/api/v1',                      chatModel: 'openai/gpt-4o-mini' },
 ];
 
 function readJSON(key, fallback) {

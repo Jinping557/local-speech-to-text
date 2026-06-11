@@ -1,18 +1,18 @@
 // app.js — 入口与编排
-import * as Storage from './storage.js?v=2026-06-11-1';
-import { transcribe, chatCorrectTranscript, synthWordsFromText, textWeight, pingConfig, pingChatConfig, ApiError } from './api.js?v=2026-06-11-1';
-import { Recorder } from './recorder.js?v=2026-06-11-1';
-import { render as renderTranscript, getTranscript, getFlatWords, formatTime } from './transcript.js?v=2026-06-11-1';
-import * as Sync from './sync.js?v=2026-06-11-1';
-import * as Evolution from './evolution.js?v=2026-06-11-1';
-import { parseCommand } from './voicecmd.js?v=2026-06-11-1';
-import { downloadMarkdown, copyMarkdown } from './export.js?v=2026-06-11-1';
-import { GUIZHOU_DIALECT_PRESET } from './dialect.js?v=2026-06-11-1';
-import { toSeekableBlob } from './audiofix.js?v=2026-06-11-1';
+import * as Storage from './storage.js?v=2026-06-11-2';
+import { transcribe, chatCorrectTranscript, synthWordsFromText, textWeight, pingConfig, pingChatConfig, ApiError } from './api.js?v=2026-06-11-2';
+import { Recorder } from './recorder.js?v=2026-06-11-2';
+import { render as renderTranscript, getTranscript, getFlatWords, formatTime } from './transcript.js?v=2026-06-11-2';
+import * as Sync from './sync.js?v=2026-06-11-2';
+import * as Evolution from './evolution.js?v=2026-06-11-2';
+import { parseCommand } from './voicecmd.js?v=2026-06-11-2';
+import { downloadMarkdown, copyMarkdown } from './export.js?v=2026-06-11-2';
+import { GUIZHOU_DIALECT_PRESET } from './dialect.js?v=2026-06-11-2';
+import { toSeekableBlob } from './audiofix.js?v=2026-06-11-2';
 
 // 前端构建版本：发布时手动 +1，并与 index.html 的 ?v= 查询串保持一致。
 // 显示在底部状态栏，用于确认线上是否已是最新代码。
-const BUILD = '2026-06-11-1';
+const BUILD = '2026-06-11-2';
 
 // === 转写提示词预设（用于对话/纠错模型的后处理指令）===
 const PROMPT_PRESETS = [
