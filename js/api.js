@@ -1,7 +1,7 @@
 // api.js — OpenAI 兼容协议客户端
 // /audio/transcriptions → verbose_json + word timestamps
 
-import { getActivePreset } from './storage.js?v=2026-06-03-1';
+import { getActivePreset } from './storage.js?v=2026-06-11-2';
 
 export class ApiError extends Error {
   constructor(status, body, message) {
@@ -96,7 +96,13 @@ export function normalize(raw) {
       const idx = findSegIdx(nw.start);
       out.segments[idx].words.push(nw);
     }
+    // 归并后保证段内词按时间排序（同步引擎依赖有序数组做二分查找）
+    for (const seg of out.segments) seg.words.sort((a, b) => a.start - b.start);
   }
+
+  // 部分厂商时间戳以毫秒计、duration 以秒计（比值 ~1000）→ 统一为秒，
+  // 否则点击任意词都会 seek 到远超音频末尾的位置而被钳制。
+  fixTimestampUnits(out, duration);
 
   // 若厂商完全没给有效的段级时间（start/end 全为 0），词时间会塌缩到 ~0，
   // 导致点击任意文本都从头播放。这里按文本长度在总时长上分布，恢复可跳转性。
@@ -123,6 +129,24 @@ export function normalize(raw) {
   return out;
 }
 
+// 检测毫秒级时间戳：若 maxEnd/duration 落在 ~1000 的区间，则整体除以 1000。
+function fixTimestampUnits(out, duration) {
+  if (!(duration > 0)) return;
+  let maxEnd = 0;
+  for (const s of out.segments) {
+    maxEnd = Math.max(maxEnd, s.end);
+    for (const w of s.words) maxEnd = Math.max(maxEnd, w.end);
+  }
+  const ratio = maxEnd / duration;
+  if (ratio < 500 || ratio > 2000) return;
+  for (const s of out.segments) {
+    s.start /= 1000;
+    s.end /= 1000;
+    for (const w of s.words) { w.start /= 1000; w.end /= 1000; }
+  }
+  console.info('[sync] 检测到毫秒级时间戳（比值 ' + ratio.toFixed(0) + '），已统一换算为秒');
+}
+
 // 判断一段的 words 时间戳是否可用：存在、数值有效、且整体随时间推进
 // （最大 end 严格大于最小 start）。全 0 或所有词同一时刻都视为不可用。
 function wordsUsable(words) {
@@ -137,7 +161,7 @@ function wordsUsable(words) {
   return maxEnd > minStart;
 }
 
-// 当厂商未提供有效段级时间时，按各段文本长度在总时长上等比分布，
+// 当厂商未提供有效段级时间时，按各段文本发音权重在总时长上等比分布，
 // 并重建词时间戳，确保「点击文本→跳转对应音频」可用。
 function ensureSegmentTiming(out, duration) {
   const segs = out.segments;
@@ -145,7 +169,7 @@ function ensureSegmentTiming(out, duration) {
   const hasTiming = segs.some((s) => s.end > 0 && s.end > s.start);
   if (hasTiming) return; // 厂商已给有效时间，不动
 
-  const lens = segs.map((s) => Math.max(1, Array.from(s.text).length));
+  const lens = segs.map((s) => textWeight(s.text));
   const sum = lens.reduce((a, b) => a + b, 0) || 1;
   // 有总时长用之；否则按 ~5 字/秒粗估，至少保证相对顺序正确
   const total = duration > 0 ? duration : sum / 5;
@@ -168,17 +192,38 @@ function normWord(w) {
   };
 }
 
-// 把段文本按字数等距切成"伪 word" 列表（仅当厂商不返回 word-level 时）
+// 字符发音权重：估算每个字符在语音中实际占用的时间比例。
+// 汉字按 1 个音节计；拉丁字母/数字拼读较快按 0.45；
+// 标点、空白几乎不占发音时间，给极小权重仅作占位。
+// 旧版按字符数均分，标点和汉字占同样时长，导致句中标点越多、
+// 后半段的插值时间越偏前，点击词跳转就越不准。
+function charWeight(ch) {
+  if (/\s/.test(ch)) return 0.02;
+  if (/[　-〿！-／：-＠［-｀｛-･.,!?;:'"()\[\]{}\-—…·]/.test(ch)) return 0.08;
+  if (/[a-zA-Z0-9]/.test(ch)) return 0.45;
+  return 1;
+}
+export function textWeight(text) {
+  let sum = 0;
+  for (const ch of String(text || '')) sum += charWeight(ch);
+  return Math.max(0.05, sum);
+}
+
+// 把段文本按发音权重切成"伪 word" 列表（仅当厂商不返回 word-level 时）
 export function synthWordsFromText(text, start, end) {
   const chars = Array.from(text);
   if (chars.length === 0) return [];
   const total = Math.max(0.001, end - start);
-  const step = total / chars.length;
+  const weights = chars.map(charWeight);
+  const sum = weights.reduce((a, b) => a + b, 0) || 1;
   const out = [];
+  let acc = 0;
   for (let i = 0; i < chars.length; i++) {
+    const s = start + (total * acc) / sum;
+    acc += weights[i];
     out.push({
-      start: start + i * step,
-      end: start + (i + 1) * step,
+      start: s,
+      end: start + (total * acc) / sum,
       text: chars[i],
     });
   }
