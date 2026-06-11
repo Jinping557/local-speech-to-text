@@ -29,19 +29,21 @@ npx http-server -p 8000
 
 ## 配置 API
 
-首次启动会自动弹出设置抽屉。需要填：
+首次启动会自动弹出「AI 模型配置」弹窗（master–detail 布局，参考 [next-ai-draw-io](https://github.com/DayuanJiang/next-ai-draw-io) 的模型配置设计）：
+
+- **左侧**为基座预设列表，底部「＋ 添加预设」可按厂商模板（`OpenAI` / `SiliconFlow 硅基流动` / `阿里通义 DashScope` / `Groq` / `自定义`）一键新建。
+- **右侧**为所选预设的配置卡片：显示名称、转写模型（STT）与可选的对话/纠错模型，每个区块都有「厂商模板」下拉自动填 Base URL 与默认模型，只需再填 Key。
+- **改动即时保存**到本机浏览器，无需点保存按钮；API Key 输入框带显示/隐藏切换，旁边的「测试」按钮可单独验证 STT 或对话模型连通性。
+- 预设需点「设为使用中」激活后才参与转写；顶栏也可一键切换。
 
 | 字段 | 说明 | 示例 |
 |---|---|---|
-| 厂商预设 | 选择常见厂商即自动填好 Base URL 与默认模型，只需再填 Key | `OpenAI` / `SiliconFlow 硅基流动` / `阿里通义 DashScope` / `Groq` / `自定义` |
-| 预设名称 | 给基座起个名字，便于切换 | `通用 Whisper` / `阿里通义 Paraformer` |
-| STT Base URL | OpenAI 兼容的根地址 | `https://api.openai.com/v1` |
-| STT API Key | 厂商分配的 Key | `sk-...` |
-| STT 模型 | 模型 ID | `whisper-1` |
+| 显示名称 | 给基座起个名字，便于切换 | `通用 Whisper` / `阿里通义 Paraformer` |
+| Base URL | OpenAI 兼容的根地址 | `https://api.openai.com/v1` |
+| API Key | 厂商分配的 Key | `sk-...` |
+| 模型 ID | STT 模型 | `whisper-1` |
 
 > 任何兼容 OpenAI `/audio/transcriptions` 协议的厂商均可（OpenAI、Groq、SiliconFlow、阿里通义、Together 等）。可保存多个预设，顶栏一键切换。
->
-> **即填即测**：填好 Base URL 与 API Key 后可直接点「测试连接」，无需先保存为预设。
 
 可选：Chat 模型字段为预留接入位（PRD 提到的 DeepSeek 等），当前版本暂未启用 Chat 通道。
 
@@ -55,7 +57,7 @@ npx http-server -p 8000
 
 ## Demo 演示路径（对应 PRD §4）
 
-1. **环境配置**：⚙ 设置 → 填入 API Key/Base URL/模型 → 保存。
+1. **环境配置**：⚙ 设置 → 选厂商模板、填入 API Key（即时保存）→ 设为使用中。
 2. **数据导入**：左侧 *拖拽/点击上传* 一段贵州方言音频（MP3/WAV/M4A/WebM），或点击 🎤 现场录音。
 3. **云端识别**：上传后系统自动转写，转写区显示带时间戳的文字。底部状态栏显示耗时。
 4. **音文比对**：
@@ -67,7 +69,7 @@ npx http-server -p 8000
    - 方式 C：在右侧"进化中心"手动添加 `原始 → 正确` 对（如 `切饭 → 吃饭`）。
    - 方式 D：在"进化中心"点击 📥 **导入贵州方言词库**，一键载入常用方言→普通话词条（可选，导入后可自行增删）。
 6. **见证进化**：再次上传/录制含相同词汇的音频 → API 返回原始文字 → 本地字典即时拦截 → 屏幕上直接显示正确版本，"进化中心"命中数 +1。
-7. **导出存档**：点击底部 📥 导出 Markdown，得到带时间戳的 `.md` 文件。
+7. **导出存档**：点击底部 📥 导出 Markdown 得到带时间戳的 `.md` 文件；或点击 📋 **复制 Markdown** 一键把同样内容复制到剪贴板。
 
 ---
 
@@ -108,7 +110,7 @@ npx http-server -p 8000
 - 当前仅支持 OpenAI Whisper 兼容协议；自定义协议厂商需在 `js/api.js::transcribe` 中扩展。
 - 录音/上传后一次性整段送 API，不做流式增量转写。
 - 不持久化音频文件（刷新页面后会话清空，进化字典会保留在 localStorage）。
-- 词级时间戳依赖厂商返回 `timestamp_granularities=["word"]`；不返回 word 的厂商，本地按段内字数线性插值（精度会下降）。
+- 词级时间戳依赖厂商返回 `timestamp_granularities=["word"]`；不返回 word 的厂商，本地按段内发音权重插值（汉字 > 英文字母 > 标点，精度会下降）。另有安全网：毫秒级时间戳自动换算为秒、时间线超出/塌缩时按真实音频时长校准。
 - 不引入构建工具、不引入前端框架。
 
 ---

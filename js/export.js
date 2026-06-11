@@ -1,5 +1,5 @@
 // export.js — 导出 Markdown
-import { formatTime } from './transcript.js?v=2026-06-03-1';
+import { formatTime } from './transcript.js?v=2026-06-11-1';
 
 export function buildMarkdown(transcript, meta = {}) {
   const lines = [];
@@ -36,6 +36,29 @@ export function downloadMarkdown(transcript, meta = {}) {
     URL.revokeObjectURL(url);
     a.remove();
   }, 0);
+}
+
+// 一键复制 Markdown 到剪贴板。优先 Clipboard API（需 HTTPS/localhost），
+// 失败时回退到隐藏 textarea + execCommand。
+export async function copyMarkdown(transcript, meta = {}) {
+  const md = buildMarkdown(transcript, meta);
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(md);
+      return true;
+    } catch { /* 失败则走回退方案 */ }
+  }
+  const ta = document.createElement('textarea');
+  ta.value = md;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { ok = false; }
+  ta.remove();
+  return ok;
 }
 
 function makeFilename(sourceName) {

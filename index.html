@@ -114,68 +114,131 @@
     <span id="status-task" class="status-item">就绪</span>
     <span id="build-stamp" class="status-item" title="当前前端构建版本">build —</span>
     <span class="spacer"></span>
+    <button id="copy-md" class="btn btn-ghost" title="把带时间戳的 Markdown 文本复制到剪贴板">📋 复制 Markdown</button>
     <button id="export-md" class="btn btn-primary">📥 导出 Markdown</button>
   </footer>
 
-  <!-- 设置抽屉 -->
+  <!-- AI 模型配置（master–detail 布局，参考 next-ai-draw-io）-->
   <div id="settings-mask" class="mask hidden" inert>
-    <div class="drawer" role="dialog" aria-labelledby="settings-title">
-      <div class="drawer-header">
-        <h2 id="settings-title">API 设置</h2>
-        <button id="close-settings" class="btn btn-ghost">✕</button>
+    <div class="model-dialog" role="dialog" aria-labelledby="settings-title">
+      <div class="dialog-header">
+        <div class="dialog-title-row">
+          <span class="dialog-icon">🖥️</span>
+          <div class="dialog-title-text">
+            <h2 id="settings-title">AI 模型配置</h2>
+            <p class="dialog-desc">为工作区配置多个转写 / 对话模型预设，改动即时保存</p>
+          </div>
+        </div>
+        <button id="close-settings" class="btn btn-ghost" title="关闭">✕</button>
       </div>
-      <div class="drawer-body">
-        <p class="hint">兼容 OpenAI Whisper 协议的厂商均可。Key 仅保存在本机浏览器，不会上传。</p>
 
-        <div class="form-row">
-          <label>厂商预设（选名字自动填地址，只需再填 Key）</label>
-          <select id="cfg-provider"></select>
-        </div>
-        <div class="form-row">
-          <label>预设名称</label>
-          <input id="cfg-name" type="text" placeholder="例如：通用 Whisper / 阿里通义 / SiliconFlow" />
-        </div>
-        <div class="form-row">
-          <label>STT Base URL</label>
-          <input id="cfg-stt-base" type="url" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://api.openai.com/v1" />
-        </div>
-        <div class="form-row">
-          <label>STT API Key</label>
-          <input id="cfg-stt-key" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sk-..." />
-        </div>
-        <div class="form-row">
-          <label>STT 模型</label>
-          <input id="cfg-stt-model" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="whisper-1" />
-        </div>
+      <div class="dialog-body">
+        <!-- 左：预设列表 -->
+        <aside class="provider-sidebar">
+          <div class="sidebar-label">基座预设</div>
+          <ul id="preset-list" class="provider-list"></ul>
+          <div class="sidebar-footer">
+            <select id="add-preset-select" class="add-provider" title="按厂商模板新建预设">
+              <option value="" selected disabled>＋ 添加预设</option>
+            </select>
+          </div>
+        </aside>
 
-        <details class="advanced">
-          <summary>对话/纠错模型（转写提示词需配置此项）</summary>
-          <p class="hint">请选择支持对话的大语言模型（LLM / Chat 模型），不是语音识别模型。推荐选性价比高的轻量版。</p>
-          <div class="form-row">
-            <label>Chat 厂商预设</label>
-            <select id="cfg-chat-provider"></select>
+        <!-- 右：所选预设详情 -->
+        <section class="provider-detail">
+          <div id="detail-empty" class="detail-empty hidden">
+            <div class="detail-empty-icon">⚙️</div>
+            <h3>配置 AI 模型</h3>
+            <p>从左侧选择一个预设，或点击「＋ 添加预设」开始配置 API Key 与模型。</p>
           </div>
-          <div class="form-row">
-            <label>Chat Base URL</label>
-            <input id="cfg-chat-base" type="url" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://api.deepseek.com/v1" />
-          </div>
-          <div class="form-row">
-            <label>Chat API Key</label>
-            <input id="cfg-chat-key" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sk-..." />
-          </div>
-          <div class="form-row">
-            <label>Chat 模型</label>
-            <input id="cfg-chat-model" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="deepseek-chat" />
-          </div>
-        </details>
 
-        <div class="drawer-actions">
-          <button id="cfg-save" class="btn btn-primary">保存为预设</button>
-          <button id="cfg-test" class="btn btn-ghost">测试连接</button>
-        </div>
+          <div id="detail-panel" class="detail-panel">
+            <div class="provider-header">
+              <span id="detail-logo" class="provider-logo">基</span>
+              <div class="provider-headinfo">
+                <div id="detail-name" class="provider-name">—</div>
+                <div id="detail-sub" class="provider-sub">—</div>
+              </div>
+              <span id="detail-active-pill" class="pill-ok hidden">✓ 使用中</span>
+              <button id="detail-activate" class="btn btn-ghost">设为使用中</button>
+              <button id="detail-delete" class="btn btn-danger-ghost" title="删除该预设">🗑 删除</button>
+            </div>
 
-        <h3 class="presets-title">已保存的基座</h3>
-        <ul id="preset-list" class="preset-list"></ul>
+            <div class="config-section">
+              <div class="config-section-head">
+                <span class="cs-title">⚙ 基础配置</span>
+              </div>
+              <div class="config-card">
+                <div class="form-row">
+                  <label>🏷 显示名称</label>
+                  <input id="cfg-name" type="text" placeholder="例如：通用 Whisper / 阿里通义 / SiliconFlow" />
+                </div>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-section-head">
+                <span class="cs-title">🎙 转写模型（STT）</span>
+                <select id="cfg-stt-template" class="template-select" title="选择厂商模板自动填入 Base URL 与默认模型">
+                  <option value="" selected disabled>厂商模板…</option>
+                </select>
+              </div>
+              <div class="config-card">
+                <div class="form-row">
+                  <label>🔑 API Key</label>
+                  <div class="key-row">
+                    <div class="key-input-wrap">
+                      <input id="cfg-stt-key" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sk-..." />
+                      <button id="cfg-stt-eye" class="eye-btn" type="button" title="显示/隐藏">👁</button>
+                    </div>
+                    <button id="cfg-stt-test" class="btn btn-primary test-btn">测试</button>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label>🔗 Base URL（OpenAI 兼容根地址）</label>
+                  <input id="cfg-stt-base" type="url" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://api.openai.com/v1" class="mono" />
+                </div>
+                <div class="form-row">
+                  <label>✨ 模型 ID</label>
+                  <input id="cfg-stt-model" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="whisper-1" class="mono" />
+                </div>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-section-head">
+                <span class="cs-title">💬 对话/纠错模型（可选，转写提示词需配置）</span>
+                <select id="cfg-chat-provider" class="template-select" title="选择厂商模板自动填入 Base URL 与默认模型">
+                  <option value="" selected disabled>厂商模板…</option>
+                </select>
+              </div>
+              <div class="config-card">
+                <div class="form-row">
+                  <label>🔑 API Key</label>
+                  <div class="key-row">
+                    <div class="key-input-wrap">
+                      <input id="cfg-chat-key" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sk-..." />
+                      <button id="cfg-chat-eye" class="eye-btn" type="button" title="显示/隐藏">👁</button>
+                    </div>
+                    <button id="cfg-chat-test" class="btn btn-primary test-btn">测试</button>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label>🔗 Base URL</label>
+                  <input id="cfg-chat-base" type="url" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://api.deepseek.com/v1" class="mono" />
+                </div>
+                <div class="form-row">
+                  <label>✨ 模型 ID（须为对话 LLM，非语音模型）</label>
+                  <input id="cfg-chat-model" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="deepseek-chat" class="mono" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="dialog-footer">
+        <span class="footer-note">🔑 API Key 仅保存在本机浏览器，不会上传任何服务器</span>
       </div>
     </div>
   </div>
@@ -183,6 +246,6 @@
   <!-- Toast 容器 -->
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
-  <script type="module" src="js/app.js?v=2026-06-03-1"></script>
+  <script type="module" src="js/app.js?v=2026-06-11-1"></script>
 </body>
 </html>

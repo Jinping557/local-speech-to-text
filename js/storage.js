@@ -86,6 +86,14 @@ export function upsertPreset(preset, index = -1) {
   return cfg;
 }
 
+// 追加新预设但不切换 active（用于设置面板「＋ 添加预设」：先配置、再手动激活）
+export function addPreset(preset) {
+  const cfg = getApiConfig();
+  cfg.presets.push({ ...DEFAULT_PRESET, ...preset });
+  saveApiConfig(cfg);
+  return cfg.presets.length - 1;
+}
+
 export function deletePreset(index) {
   const cfg = getApiConfig();
   if (cfg.presets.length <= 1) return cfg;

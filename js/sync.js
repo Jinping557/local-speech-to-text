@@ -122,13 +122,17 @@ function _applySeek(target) {
   _audio.play().catch(() => {});
 }
 
+// 点击词时略提前起播：词级时间戳（尤其是按字数插值的伪 word）的起点
+// 普遍略偏后，不提前会听不到所点词的第一个音节。
+const SEEK_PRE_ROLL = 0.15;
+
 function _onClick(e) {
   // 编辑模式下不寻迹（避免点击修改文本时跳音频）
   if (_container?.getAttribute('contenteditable') === 'true') return;
   const w = e.target.closest('.w');
   if (!w || !_audio) return;
   const t = parseFloat(w.dataset.start);
-  if (Number.isFinite(t)) _seekTo(t);
+  if (Number.isFinite(t)) _seekTo(Math.max(0, t - SEEK_PRE_ROLL));
 }
 
 // 二分查找：第一个 end > t 的词，且 start <= t；若 t 落在 gap 中返回最近的下一个词
